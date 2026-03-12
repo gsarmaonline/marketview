@@ -2,6 +2,20 @@
 
 A tool for Indian market investors to assess whether now is a good time to invest, based on live market indicators.
 
+## Features
+
+- Market indicators
+  - News based
+  - Indices based
+- Portfolio management and evaluation
+- Deep Research on stocks and mutual funds
+  - Ownership
+  - Breakdown of stocks for mutual funds
+  - Volume
+  - FII investment
+  - Downstream and upstream providers
+  - Annual report reader
+
 ## Architecture
 
 - **Go backend** (`main.go`, `internal/`) - fetches and scores market indicators, exposes a JSON API on `:8080`
