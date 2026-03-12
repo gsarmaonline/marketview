@@ -22,9 +22,9 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/api` - HTTP server, route registration, CORS middleware (Gin)
   - `internal/indicators` - market indicator framework (NIFTY 50 PE)
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
-  - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard)
+  - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
-- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds, with a live market news feed
+- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds, with a live market news feed (tabbed: general market news and per-stock news)
 
 ## API
 
@@ -59,6 +59,23 @@ A tool for Indian market investors to assess whether now is a good time to inves
   }
 ]
 ```
+
+`GET /api/news/stock/:symbol` — returns stock-specific news items stored in the in-memory pipeline for the given symbol (case-insensitive). Returns `[]` if no news has been ingested yet.
+
+```json
+[
+  {
+    "title": "HDFC Bank Q4 results beat estimates",
+    "description": "...",
+    "link": "https://...",
+    "publishedAt": "2026-03-12T10:00:00Z",
+    "source": "Economic Times",
+    "symbol": "HDFCBANK"
+  }
+]
+```
+
+**Stock news pipeline:** Any ingestion source (scheduled scrapers, webhooks, admin jobs) can push news into the store via `newsStore.Ingest(symbol, items)` or `newsStore.Replace(symbol, items)`. The store deduplicates by link and normalises symbols to uppercase.
 
 ### Mutual Funds
 
