@@ -1,0 +1,13 @@
+.git
+.gitignore
+README.md
+Makefile
+
+# Go
+*.test
+*.out
+
+# Node
+frontend/node_modules
+frontend/.next
+frontend/.env*.local
