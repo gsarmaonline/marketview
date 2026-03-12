@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"marketview/internal/deepresearch"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
 	"marketview/internal/news"
@@ -16,12 +17,13 @@ type Server struct {
 	router     *gin.Engine
 	indicators []indicators.Indicator
 	mfHandler  *mutualfund.Handler
+	drHandler  *deepresearch.Handler
 }
 
-func New(inds []indicators.Indicator, mfHandler *mutualfund.Handler) *Server {
+func New(inds []indicators.Indicator, mfHandler *mutualfund.Handler, drHandler *deepresearch.Handler) *Server {
 	r := gin.Default()
 
-	s := &Server{router: r, indicators: inds, mfHandler: mfHandler}
+	s := &Server{router: r, indicators: inds, mfHandler: mfHandler, drHandler: drHandler}
 
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
@@ -38,6 +40,7 @@ func New(inds []indicators.Indicator, mfHandler *mutualfund.Handler) *Server {
 	r.GET("/api/news", s.handleNews)
 	r.GET("/api/mutual-fund/search", mfHandler.HandleSearch)
 	r.GET("/api/mutual-fund/:schemeCode", mfHandler.HandleDetails)
+	r.GET("/api/stock/:symbol/deep-research", drHandler.HandleDeepResearch)
 
 	return s
 }

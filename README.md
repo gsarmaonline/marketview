@@ -10,7 +10,8 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard)
   - `internal/nse` - NSE India HTTP client
-- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds, with a live market news feed
+  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback)
+- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds, with a live market news feed and stock deep research at `/stock/[symbol]`
 
 ## API
 
@@ -88,6 +89,26 @@ A tool for Indian market investors to assess whether now is a good time to inves
 ```
 
 Holdings and stats are sourced from Yahoo Finance and may be absent for funds not listed there.
+
+### Deep Research
+
+`GET /api/stock/:symbol/deep-research` — annual reports for a stock (NSE symbol, e.g. `RELIANCE`). Falls back to BSE if NSE is unavailable:
+
+```json
+{
+  "symbol": "RELIANCE",
+  "annualReports": [
+    {
+      "seqNumber": 1,
+      "issuer": "Reliance Industries Limited",
+      "year": "2023-2024",
+      "subject": "Annual Report 2023-24",
+      "pdfLink": "https://archives.nseindia.com/..."
+    }
+  ],
+  "annualReportsSource": "NSE"
+}
+```
 
 ## Running
 

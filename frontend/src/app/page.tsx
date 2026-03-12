@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { NewsSection, type NewsItem } from "@/components/NewsSection";
 
 type Signal = "bullish" | "neutral" | "bearish";
@@ -146,6 +147,57 @@ function SignalSummary({ indicators }: { indicators: Indicator[] }) {
   );
 }
 
+function StockSearch() {
+  const [query, setQuery] = useState("");
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const symbol = query.trim().toUpperCase();
+    if (symbol) router.push(`/stock/${symbol}`);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <input
+        ref={inputRef}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Enter NSE symbol (e.g. RELIANCE)"
+        style={{
+          background: "#1a1d27",
+          border: "1px solid #2a2f45",
+          borderRadius: 8,
+          padding: "8px 14px",
+          color: "#e2e8f0",
+          fontSize: 13,
+          outline: "none",
+          width: 260,
+        }}
+      />
+      <button
+        type="submit"
+        disabled={!query.trim()}
+        style={{
+          background: "rgba(99,102,241,0.15)",
+          border: "1px solid rgba(99,102,241,0.3)",
+          color: "#818cf8",
+          borderRadius: 8,
+          padding: "8px 16px",
+          fontSize: 13,
+          fontWeight: 500,
+          cursor: query.trim() ? "pointer" : "not-allowed",
+          opacity: query.trim() ? 1 : 0.5,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Deep Research
+      </button>
+    </form>
+  );
+}
+
 export default function DashboardPage() {
   const [indicators, setIndicators] = useState<Indicator[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,7 +278,8 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <StockSearch />
             {lastUpdated && (
               <span style={{ fontSize: 12, color: "#475569" }}>
                 Updated {lastUpdated.toLocaleTimeString()} · refreshing in {countdown}s

@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"marketview/internal/api"
+	"marketview/internal/deepresearch"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
 	"marketview/internal/nse"
@@ -22,6 +23,9 @@ func main() {
 	mfService := mutualfund.NewService()
 	mfHandler := mutualfund.NewHandler(mfService)
 
-	srv := api.New(allIndicators, mfHandler)
+	drService := deepresearch.NewService(nseClient)
+	drHandler := deepresearch.NewHandler(drService)
+
+	srv := api.New(allIndicators, mfHandler, drHandler)
 	log.Fatal(srv.Run(":8080"))
 }
