@@ -2,11 +2,15 @@ package db
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+//go:embed schema.sql
+var schema string
 
 func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 	dsn := os.Getenv("DATABASE_URL")
@@ -32,21 +36,7 @@ func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS holdings (
-			id           SERIAL PRIMARY KEY,
-			asset_type   VARCHAR(50)    NOT NULL,
-			name         VARCHAR(255)   NOT NULL,
-			quantity     NUMERIC(15,4),
-			buy_price    NUMERIC(15,2),
-			current_value NUMERIC(15,2),
-			buy_date     DATE,
-			notes        TEXT           NOT NULL DEFAULT '',
-			metadata     JSONB          NOT NULL DEFAULT '{}',
-			created_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-			updated_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW()
-		);
-	`)
+	_, err := pool.Exec(ctx, schema)
 	return err
 }
 

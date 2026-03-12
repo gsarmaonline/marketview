@@ -4,49 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	dbgen "marketview/internal/portfolio/db"
 )
 
 type Repository struct {
-	pool *pgxpool.Pool
+	q *dbgen.Queries
 }
 
 func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+	return &Repository{q: dbgen.New(pool)}
 }
 
 func (r *Repository) List(ctx context.Context) ([]Holding, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT id, asset_type, name, quantity, buy_price, current_value,
-		       buy_date, notes, metadata, created_at, updated_at
-		FROM holdings
-		ORDER BY asset_type, created_at DESC
-	`)
+	rows, err := r.q.ListHoldings(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var holdings []Holding
-	for rows.Next() {
-		var h Holding
-		var meta []byte
-		err := rows.Scan(
-			&h.ID, &h.AssetType, &h.Name, &h.Quantity, &h.BuyPrice,
-			&h.CurrentValue, &h.BuyDate, &h.Notes, &meta,
-			&h.CreatedAt, &h.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		h.Metadata = json.RawMessage(meta)
-		holdings = append(holdings, h)
+	result := make([]Holding, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, fromDB(row))
 	}
-	if holdings == nil {
-		holdings = []Holding{}
-	}
-	return holdings, rows.Err()
+	return result, nil
 }
 
 func (r *Repository) Create(ctx context.Context, req CreateHoldingRequest) (Holding, error) {
@@ -54,26 +38,20 @@ func (r *Repository) Create(ctx context.Context, req CreateHoldingRequest) (Hold
 	if len(meta) == 0 {
 		meta = json.RawMessage(`{}`)
 	}
-
-	var h Holding
-	var rawMeta []byte
-	err := r.pool.QueryRow(ctx, `
-		INSERT INTO holdings (asset_type, name, quantity, buy_price, current_value, buy_date, notes, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, asset_type, name, quantity, buy_price, current_value,
-		          buy_date, notes, metadata, created_at, updated_at
-	`, req.AssetType, req.Name, req.Quantity, req.BuyPrice, req.CurrentValue,
-		req.BuyDate, req.Notes, meta,
-	).Scan(
-		&h.ID, &h.AssetType, &h.Name, &h.Quantity, &h.BuyPrice,
-		&h.CurrentValue, &h.BuyDate, &h.Notes, &rawMeta,
-		&h.CreatedAt, &h.UpdatedAt,
-	)
+	row, err := r.q.CreateHolding(ctx, dbgen.CreateHoldingParams{
+		AssetType:    string(req.AssetType),
+		Name:         req.Name,
+		Quantity:     toNumeric(req.Quantity),
+		BuyPrice:     toNumeric(req.BuyPrice),
+		CurrentValue: toNumeric(req.CurrentValue),
+		BuyDate:      toDate(req.BuyDate),
+		Notes:        req.Notes,
+		Metadata:     meta,
+	})
 	if err != nil {
 		return Holding{}, err
 	}
-	h.Metadata = json.RawMessage(rawMeta)
-	return h, nil
+	return fromDB(row), nil
 }
 
 func (r *Repository) Update(ctx context.Context, id int, req UpdateHoldingRequest) (Holding, error) {
@@ -81,38 +59,95 @@ func (r *Repository) Update(ctx context.Context, id int, req UpdateHoldingReques
 	if len(meta) == 0 {
 		meta = json.RawMessage(`{}`)
 	}
-
-	var h Holding
-	var rawMeta []byte
-	err := r.pool.QueryRow(ctx, `
-		UPDATE holdings
-		SET asset_type = $1, name = $2, quantity = $3, buy_price = $4,
-		    current_value = $5, buy_date = $6, notes = $7, metadata = $8,
-		    updated_at = NOW()
-		WHERE id = $9
-		RETURNING id, asset_type, name, quantity, buy_price, current_value,
-		          buy_date, notes, metadata, created_at, updated_at
-	`, req.AssetType, req.Name, req.Quantity, req.BuyPrice, req.CurrentValue,
-		req.BuyDate, req.Notes, meta, id,
-	).Scan(
-		&h.ID, &h.AssetType, &h.Name, &h.Quantity, &h.BuyPrice,
-		&h.CurrentValue, &h.BuyDate, &h.Notes, &rawMeta,
-		&h.CreatedAt, &h.UpdatedAt,
-	)
+	row, err := r.q.UpdateHolding(ctx, dbgen.UpdateHoldingParams{
+		ID:           int32(id),
+		AssetType:    string(req.AssetType),
+		Name:         req.Name,
+		Quantity:     toNumeric(req.Quantity),
+		BuyPrice:     toNumeric(req.BuyPrice),
+		CurrentValue: toNumeric(req.CurrentValue),
+		BuyDate:      toDate(req.BuyDate),
+		Notes:        req.Notes,
+		Metadata:     meta,
+	})
 	if err != nil {
 		return Holding{}, fmt.Errorf("holding %d not found", id)
 	}
-	h.Metadata = json.RawMessage(rawMeta)
-	return h, nil
+	return fromDB(row), nil
 }
 
 func (r *Repository) Delete(ctx context.Context, id int) error {
-	cmd, err := r.pool.Exec(ctx, `DELETE FROM holdings WHERE id = $1`, id)
+	n, err := r.q.DeleteHolding(ctx, int32(id))
 	if err != nil {
 		return err
 	}
-	if cmd.RowsAffected() == 0 {
+	if n == 0 {
 		return fmt.Errorf("holding %d not found", id)
 	}
 	return nil
+}
+
+// ── type conversion helpers ───────────────────────────────────────────────
+
+func fromDB(h dbgen.Holding) Holding {
+	return Holding{
+		ID:           int(h.ID),
+		AssetType:    AssetType(h.AssetType),
+		Name:         h.Name,
+		Quantity:     fromNumeric(h.Quantity),
+		BuyPrice:     fromNumeric(h.BuyPrice),
+		CurrentValue: fromNumeric(h.CurrentValue),
+		BuyDate:      fromDate(h.BuyDate),
+		Notes:        h.Notes,
+		Metadata:     h.Metadata,
+		CreatedAt:    h.CreatedAt.Time,
+		UpdatedAt:    h.UpdatedAt.Time,
+	}
+}
+
+func toNumeric(f *float64) pgtype.Numeric {
+	if f == nil {
+		return pgtype.Numeric{}
+	}
+	var n pgtype.Numeric
+	_ = n.Scan(*f)
+	return n
+}
+
+func fromNumeric(n pgtype.Numeric) *float64 {
+	if !n.Valid {
+		return nil
+	}
+	f, _ := new(big.Float).SetInt(n.Int).Float64()
+	if n.Exp != 0 {
+		scale := new(big.Float).SetFloat64(1)
+		ten := new(big.Float).SetInt64(10)
+		exp := int(n.Exp)
+		if exp > 0 {
+			for i := 0; i < exp; i++ {
+				scale.Mul(scale, ten)
+			}
+			f, _ = new(big.Float).Mul(new(big.Float).SetFloat64(f), scale).Float64()
+		} else {
+			for i := 0; i < -exp; i++ {
+				scale.Mul(scale, ten)
+			}
+			f, _ = new(big.Float).Quo(new(big.Float).SetFloat64(f), scale).Float64()
+		}
+	}
+	return &f
+}
+
+func toDate(t *time.Time) pgtype.Date {
+	if t == nil {
+		return pgtype.Date{}
+	}
+	return pgtype.Date{Time: *t, Valid: true}
+}
+
+func fromDate(d pgtype.Date) *time.Time {
+	if !d.Valid {
+		return nil
+	}
+	return &d.Time
 }
