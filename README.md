@@ -5,13 +5,12 @@ A tool for Indian market investors to assess whether now is a good time to inves
 ## Architecture
 
 - **Go backend** (`main.go`, `internal/`) - fetches and scores market indicators, exposes a JSON API on `:8080`
-
-- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds
-  - `internal/api` - HTTP server, route registration, CORS middleware
+  - `internal/api` - HTTP server, route registration, CORS middleware (Gin)
   - `internal/indicators` - market indicator framework (NIFTY 50 PE)
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
+  - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard)
   - `internal/nse` - NSE India HTTP client
-
+- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds, with a live market news feed
 
 ## API
 
@@ -27,6 +26,22 @@ A tool for Indian market investors to assess whether now is a good time to inves
     "unit": "x",
     "signal": "neutral",
     "description": "PE of 22.1x is in the fair-value range (20-25)"
+  }
+]
+```
+
+### News
+
+`GET /api/news` — returns up to 20 recent market news items aggregated from Economic Times, Moneycontrol, and Business Standard:
+
+```json
+[
+  {
+    "title": "Sensex rises 300 points...",
+    "description": "...",
+    "link": "https://...",
+    "publishedAt": "2026-03-12T08:00:00Z",
+    "source": "Economic Times"
   }
 ]
 ```
