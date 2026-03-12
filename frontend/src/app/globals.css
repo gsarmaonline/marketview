@@ -1,0 +1,34 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-hover: #22263a;
+  --border: #2a2f45;
+  --text: #e2e8f0;
+  --text-muted: #64748b;
+
+  --bullish: #22c55e;
+  --bullish-bg: rgba(34, 197, 94, 0.12);
+  --bullish-border: rgba(34, 197, 94, 0.3);
+
+  --neutral: #f59e0b;
+  --neutral-bg: rgba(245, 158, 11, 0.12);
+  --neutral-border: rgba(245, 158, 11, 0.3);
+
+  --bearish: #ef4444;
+  --bearish-bg: rgba(239, 68, 68, 0.12);
+  --bearish-border: rgba(239, 68, 68, 0.3);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}

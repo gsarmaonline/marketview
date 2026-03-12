@@ -5,7 +5,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
 ## Architecture
 
 - **Go backend** (`main.go`, `internal/`) - fetches and scores market indicators, exposes a JSON API on `:8080`
-- **Next.js frontend** (`frontend/`) - consumes the API (pages not yet implemented)
+- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds
 
 ## API
 
