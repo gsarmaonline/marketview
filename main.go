@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 
 	"marketview/internal/api"
 	"marketview/internal/indicators"
@@ -24,8 +23,5 @@ func main() {
 	mfHandler := mutualfund.NewHandler(mfService)
 
 	srv := api.New(allIndicators, mfHandler)
-	srv.RegisterRoutes()
-
-	log.Println("server listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(srv.Run(":8080"))
 }

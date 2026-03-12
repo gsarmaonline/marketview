@@ -1,10 +1,10 @@
 package mutualfund
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // Handler handles mutual fund HTTP requests.
@@ -17,50 +17,33 @@ func NewHandler(service *Service) *Handler {
 }
 
 // HandleSearch handles GET /api/mutual-fund/search?q={query}
-func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	query := r.URL.Query().Get("q")
+func (h *Handler) HandleSearch(c *gin.Context) {
+	query := c.Query("q")
 	if query == "" {
-		http.Error(w, "missing query parameter 'q'", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing query parameter 'q'"})
 		return
 	}
 
 	results, err := h.service.Search(query)
 	if err != nil {
-		http.Error(w, "search failed: "+err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	writeJSON(w, results)
+	c.JSON(http.StatusOK, results)
 }
 
-// HandleDetails handles GET /api/mutual-fund/{schemeCode}
-func (h *Handler) HandleDetails(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Extract scheme code from the trailing path segment.
-	parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
-	codeStr := parts[len(parts)-1]
-	schemeCode, err := strconv.Atoi(codeStr)
+// HandleDetails handles GET /api/mutual-fund/:schemeCode
+func (h *Handler) HandleDetails(c *gin.Context) {
+	schemeCode, err := strconv.Atoi(c.Param("schemeCode"))
 	if err != nil || schemeCode <= 0 {
-		http.Error(w, "invalid scheme code", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scheme code"})
 		return
 	}
 
 	details, err := h.service.GetDetails(schemeCode)
 	if err != nil {
-		http.Error(w, "failed to fetch fund details: "+err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	writeJSON(w, details)
-}
-
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(v)
+	c.JSON(http.StatusOK, details)
 }
