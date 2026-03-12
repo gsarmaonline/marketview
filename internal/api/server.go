@@ -1,12 +1,13 @@
 package api
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 
+	"marketview/internal/db"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
 	"marketview/internal/news"
@@ -19,12 +20,23 @@ type Server struct {
 	indicators []indicators.Indicator
 	mfHandler  *mutualfund.Handler
 	newsStore  *news.Store
+	shutdown   func()
 }
 
-func New(inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store, pool *pgxpool.Pool) *Server {
-	r := gin.Default()
+func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store) (*Server, error) {
+	pool, err := db.Open(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	s := &Server{router: r, indicators: inds, mfHandler: mfHandler, newsStore: newsStore}
+	r := gin.Default()
+	s := &Server{
+		router:     r,
+		indicators: inds,
+		mfHandler:  mfHandler,
+		newsStore:  newsStore,
+		shutdown:   pool.Close,
+	}
 
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
@@ -53,11 +65,15 @@ func New(inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *
 	r.Any("/api/portfolio/holdings", gin.WrapH(portfolioMux))
 	r.Any("/api/portfolio/holdings/*path", gin.WrapH(portfolioMux))
 
-	return s
+	return s, nil
 }
 
 func (s *Server) Run(addr string) error {
 	return s.router.Run(addr)
+}
+
+func (s *Server) Shutdown() {
+	s.shutdown()
 }
 
 func (s *Server) handleNews(c *gin.Context) {

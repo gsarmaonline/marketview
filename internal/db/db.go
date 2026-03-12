@@ -12,6 +12,19 @@ import (
 //go:embed schema.sql
 var schema string
 
+// Open connects to the database and runs migrations in one step.
+func Open(ctx context.Context) (*pgxpool.Pool, error) {
+	pool, err := Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := Migrate(ctx, pool); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("migration failed: %w", err)
+	}
+	return pool, nil
+}
+
 func Connect(ctx context.Context) (*pgxpool.Pool, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
