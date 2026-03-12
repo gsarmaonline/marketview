@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { NewsSection, type NewsItem } from "@/components/NewsSection";
 
 type Signal = "bullish" | "neutral" | "bearish";
 
@@ -62,7 +63,6 @@ function IndicatorCard({ indicator }: { indicator: Indicator }) {
         (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
       }}
     >
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <span style={{ fontSize: 14, fontWeight: 500, color: "#94a3b8", lineHeight: 1.4 }}>
           {indicator.name}
@@ -88,7 +88,6 @@ function IndicatorCard({ indicator }: { indicator: Indicator }) {
         </span>
       </div>
 
-      {/* Value */}
       <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
         <span
           style={{
@@ -104,7 +103,6 @@ function IndicatorCard({ indicator }: { indicator: Indicator }) {
         <span style={{ fontSize: 18, color: "#64748b", fontWeight: 500 }}>{indicator.unit}</span>
       </div>
 
-      {/* Description */}
       <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, borderTop: `1px solid ${sig.border}`, paddingTop: 12 }}>
         {indicator.description}
       </p>
@@ -155,6 +153,10 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL / 1000);
 
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [newsError, setNewsError] = useState<string | null>(null);
+
   const fetchIndicators = useCallback(async () => {
     try {
       const res = await fetch("/api/indicators");
@@ -171,11 +173,31 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const fetchNews = useCallback(async () => {
+    try {
+      const res = await fetch("/api/news");
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data: NewsItem[] = await res.json();
+      setNews(data);
+      setNewsError(null);
+    } catch (err) {
+      setNewsError(err instanceof Error ? err.message : "Failed to fetch news");
+    } finally {
+      setNewsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchIndicators();
     const interval = setInterval(fetchIndicators, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchIndicators]);
+
+  useEffect(() => {
+    fetchNews();
+    const interval = setInterval(fetchNews, REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchNews]);
 
   // Countdown timer
   useEffect(() => {
@@ -231,7 +253,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Summary bar */}
         {indicators.length > 0 && (
           <div style={{ marginTop: 24 }}>
             <SignalSummary indicators={indicators} />
@@ -296,7 +317,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Empty state */}
       {!loading && !error && indicators.length === 0 && (
         <div
           style={{
@@ -309,6 +329,11 @@ export default function DashboardPage() {
           No indicators available.
         </div>
       )}
+
+      {/* News section */}
+      <div style={{ marginTop: 56 }}>
+        <NewsSection news={news} loading={newsLoading} error={newsError} />
+      </div>
 
       <style>{`
         @keyframes pulse {
