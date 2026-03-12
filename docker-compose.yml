@@ -1,10 +1,36 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marketview
+      POSTGRES_PASSWORD: marketview
+      POSTGRES_DB: marketview
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketview"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     ports:
       - "8081:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=marketview
+      - DB_PASSWORD=marketview
+      - DB_NAME=marketview
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -18,3 +44,6 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8080
     restart: unless-stopped
+
+volumes:
+  postgres_data:

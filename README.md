@@ -1,30 +1,54 @@
 # marketview
 
-A tool for Indian market investors to assess whether now is a good time to invest, based on live market indicators.
+A tool for Indian market investors to assess whether now is a good time to invest, based on live market indicators, with a manual portfolio tracker.
 
 ## Features
 
-- Market indicators
-  - News based
-  - Indices based
-- Portfolio management and evaluation
-- Deep Research on stocks and mutual funds
-  - Ownership
-  - Breakdown of stocks for mutual funds
-  - Volume
-  - FII investment
-  - Downstream and upstream providers
-  - Annual report reader
+- Market indicators (NIFTY 50 PE ratio, signal scoring)
+- Live market news feed (Economic Times, Moneycontrol, Business Standard) with per-stock news pipeline
+- Portfolio management: stocks, FDs, mutual funds, gold, and other assets
+- Mutual fund deep research: holdings breakdown, NAV history, allocation stats
 
 ## Architecture
 
-- **Go backend** (`main.go`, `internal/`) - fetches and scores market indicators, exposes a JSON API on `:8080`
-  - `internal/api` - HTTP server, route registration, CORS middleware (Gin)
+- **Go backend** (`main.go`, `internal/`) - fetches and scores market indicators, manages portfolio data, exposes a JSON API on `:8080`
+  - `internal/api` - HTTP server (Gin), route registration, CORS middleware
   - `internal/indicators` - market indicator framework (NIFTY 50 PE)
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
-- **Next.js frontend** (`frontend/`) - dashboard at `/` showing all indicators color-coded by signal (bullish/neutral/bearish), auto-refreshes every 60 seconds, with a live market news feed (tabbed: general market news and per-stock news)
+  - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
+  - `internal/portfolio` - portfolio holdings CRUD
+  - `internal/portfolio/db` - sqlc-generated type-safe query code (do not edit)
+- **Next.js frontend** (`frontend/`) - indicators dashboard and portfolio management UI on `:3000`, with a live market news feed (tabbed: general market news and per-stock news)
+- **PostgreSQL** - stores portfolio holdings
+
+## Running
+
+```bash
+make up   # starts postgres, backend, and frontend via Docker Compose
+```
+
+Or locally:
+
+```bash
+# requires a local Postgres instance
+export DB_HOST=localhost DB_USER=marketview DB_PASSWORD=marketview DB_NAME=marketview
+go run main.go              # backend on :8080
+cd frontend && npm run dev  # frontend on :3000
+```
+
+## Development
+
+### Regenerating database queries
+
+SQL queries live in `db/queries/`. The schema lives in `internal/db/schema.sql`. After editing either, regenerate the Go code:
+
+```bash
+sqlc generate
+```
+
+The generated files in `internal/portfolio/db/` are committed and should not be edited by hand.
 
 ## API
 
@@ -46,85 +70,42 @@ A tool for Indian market investors to assess whether now is a good time to inves
 
 ### News
 
-`GET /api/news` — returns up to 20 recent market news items aggregated from Economic Times, Moneycontrol, and Business Standard:
-
-```json
-[
-  {
-    "title": "Sensex rises 300 points...",
-    "description": "...",
-    "link": "https://...",
-    "publishedAt": "2026-03-12T08:00:00Z",
-    "source": "Economic Times"
-  }
-]
-```
+`GET /api/news` — returns up to 20 recent market news items aggregated from Economic Times, Moneycontrol, and Business Standard.
 
 `GET /api/news/stock/:symbol` — returns stock-specific news items stored in the in-memory pipeline for the given symbol (case-insensitive). Returns `[]` if no news has been ingested yet.
 
-```json
-[
-  {
-    "title": "HDFC Bank Q4 results beat estimates",
-    "description": "...",
-    "link": "https://...",
-    "publishedAt": "2026-03-12T10:00:00Z",
-    "source": "Economic Times",
-    "symbol": "HDFCBANK"
-  }
-]
-```
-
-**Stock news pipeline:** Any ingestion source (scheduled scrapers, webhooks, admin jobs) can push news into the store via `newsStore.Ingest(symbol, items)` or `newsStore.Replace(symbol, items)`. The store deduplicates by link and normalises symbols to uppercase.
+**Stock news pipeline:** Any ingestion source can push news into the store via `newsStore.Ingest(symbol, items)` or `newsStore.Replace(symbol, items)`. The store deduplicates by link and normalises symbols to uppercase.
 
 ### Mutual Funds
 
-`GET /api/mutual-fund/search?q={name}` — search for funds by name:
+`GET /api/mutual-fund/search?q={name}` — search for funds by name
 
-```json
-[
-  { "schemeCode": 119598, "schemeName": "Axis Bluechip Fund - Direct Growth" }
-]
-```
+`GET /api/mutual-fund/{schemeCode}` — full fund details including stock holdings and allocation
 
-`GET /api/mutual-fund/{schemeCode}` — full fund details including stock holdings and allocation:
+### Portfolio
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/portfolio/holdings` | List all holdings |
+| POST | `/api/portfolio/holdings` | Add a holding |
+| PUT | `/api/portfolio/holdings/{id}` | Update a holding |
+| DELETE | `/api/portfolio/holdings/{id}` | Delete a holding |
+
+Supported asset types: `stock`, `fd`, `mutual_fund`, `gold`, `other`
+
+Example payload:
 
 ```json
 {
-  "schemeCode": 119598,
-  "schemeName": "Axis Bluechip Fund - Direct Growth",
-  "fundHouse": "Axis Mutual Fund",
-  "schemeType": "Open Ended Schemes",
-  "schemeCategory": "Equity Scheme - Large Cap Fund",
-  "latestNAV": 56.78,
-  "navDate": "11-03-2026",
-  "navHistory": [{ "date": "11-03-2026", "nav": 56.78 }],
-  "holdings": [
-    { "name": "HDFC Bank Ltd", "symbol": "HDFCBANK.NS", "percentage": 9.52 }
-  ],
-  "stats": {
-    "aum": 25000000000,
-    "yield": 0.2,
-    "ytdReturn": 3.5,
-    "beta3Year": 0.95,
-    "morningStarRating": 4,
-    "equityPE": 25.3,
-    "equityPB": 3.2,
-    "stockAllocation": 95.0,
-    "bondAllocation": 0.0,
-    "cashAllocation": 5.0,
-    "category": "India Fund Large-Cap"
-  }
+  "asset_type": "stock",
+  "name": "RELIANCE",
+  "quantity": 10,
+  "buy_price": 2850.50,
+  "current_value": 29500,
+  "buy_date": "2024-01-15T00:00:00Z",
+  "notes": "Long term hold",
+  "metadata": {}
 }
-```
-
-Holdings and stats are sourced from Yahoo Finance and may be absent for funds not listed there.
-
-## Running
-
-```bash
-go run main.go        # starts backend on :8080
-cd frontend && npm run dev  # starts Next.js on :3000
 ```
 
 ## Indicators
