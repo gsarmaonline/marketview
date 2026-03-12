@@ -1,11 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
-	"marketview/internal/indicators"
-	"marketview/internal/nse"
 	"net/http"
+
+	"marketview/internal/api"
+	"marketview/internal/indicators"
+	"marketview/internal/mutualfund"
+	"marketview/internal/nse"
 )
 
 func main() {
@@ -18,22 +20,11 @@ func main() {
 		indicators.NewNiftyPE(nseClient),
 	}
 
-	http.HandleFunc("/api/indicators", func(w http.ResponseWriter, r *http.Request) {
-		results := make([]indicators.IndicatorResult, 0, len(allIndicators))
+	mfService := mutualfund.NewService()
+	mfHandler := mutualfund.NewHandler(mfService)
 
-		for _, ind := range allIndicators {
-			result, err := ind.Fetch()
-			if err != nil {
-				log.Printf("error fetching %s: %v", ind.Name(), err)
-				continue
-			}
-			results = append(results, result)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		json.NewEncoder(w).Encode(results)
-	})
+	srv := api.New(allIndicators, mfHandler)
+	srv.RegisterRoutes()
 
 	log.Println("server listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
