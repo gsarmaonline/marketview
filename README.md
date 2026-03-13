@@ -99,7 +99,7 @@ The generated files in `internal/portfolio/db/` are committed and should not be 
 
 `GET /api/news/stock/:symbol` — returns stock-specific news items stored in the in-memory pipeline for the given symbol (case-insensitive). Returns `[]` if no news has been ingested yet.
 
-**Stock news pipeline:** Any ingestion source can push news into the store via `newsStore.Ingest(symbol, items)` or `newsStore.Replace(symbol, items)`. The store deduplicates by link and normalises symbols to uppercase.
+**Stock news pipeline:** A background ingester runs every 15 minutes, fetches the latest RSS articles, and matches each article to relevant stocks using keyword matching across ~65 major NSE-listed companies (Nifty 50 and others). Matched articles are pushed into the store automatically. The store deduplicates by article URL and normalises symbols to uppercase. Additional ingestion sources can also push news directly via `newsStore.Ingest(symbol, items)` or `newsStore.Replace(symbol, items)`.
 
 ### Mutual Funds
 

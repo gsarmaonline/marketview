@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"time"
 
 	"marketview/internal/api"
 	"marketview/internal/db"
@@ -15,7 +16,8 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	pool, err := db.Open(ctx)
 	if err != nil {
@@ -43,6 +45,9 @@ func main() {
 	drHandler := deepresearch.NewHandler(drService)
 
 	newsStore := news.NewStore()
+
+	ingester := news.NewIngester(newsStore, news.NiftyStocks, 15*time.Minute)
+	ingester.Start(ctx)
 
 	srv, err := api.New(ctx, pool, allIndicators, mfHandler, newsStore, drHandler)
 	if err != nil {
