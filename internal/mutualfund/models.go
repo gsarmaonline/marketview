@@ -33,6 +33,41 @@ type Holding struct {
 	Percentage float64 `json:"percentage"` // 0–100
 }
 
+// FundInput is a fund reference from the portfolio (name + optional scheme code).
+type FundInput struct {
+	Name       string `json:"name"`
+	SchemeCode int    `json:"schemeCode,omitempty"`
+}
+
+// PortfolioFundAnalysis is the per-fund result in a portfolio analysis.
+type PortfolioFundAnalysis struct {
+	Name       string    `json:"name"`
+	SchemeCode int       `json:"schemeCode,omitempty"`
+	FundHouse  string    `json:"fundHouse,omitempty"`
+	Category   string    `json:"category,omitempty"`
+	Holdings   []Holding `json:"holdings"`
+}
+
+// FundAllocation shows one fund's allocation in a shared stock.
+type FundAllocation struct {
+	FundName   string  `json:"fundName"`
+	Percentage float64 `json:"percentage"`
+}
+
+// StockOverlap describes a stock that appears in two or more portfolio funds.
+type StockOverlap struct {
+	StockName string           `json:"stockName"`
+	Symbol    string           `json:"symbol,omitempty"`
+	Funds     []FundAllocation `json:"funds"`
+}
+
+// PortfolioAnalysis is the complete result returned by the analyse endpoint.
+type PortfolioAnalysis struct {
+	Funds           []PortfolioFundAnalysis `json:"funds"`
+	Overlaps        []StockOverlap          `json:"overlaps"`
+	Recommendations []string                `json:"recommendations"`
+}
+
 // FundStats contains additional fund-level statistics.
 type FundStats struct {
 	AUM               float64 `json:"aum,omitempty"`               // total assets in fund currency

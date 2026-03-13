@@ -118,6 +118,12 @@ Holdings and stats are sourced from Yahoo Finance and may be absent for funds no
 | POST | `/api/portfolio/holdings` | Add a holding |
 | PUT | `/api/portfolio/holdings/{id}` | Update a holding |
 | DELETE | `/api/portfolio/holdings/{id}` | Delete a holding |
+| GET | `/api/portfolio/analyse` | Analyse mutual fund holdings: stock overlap, category concentration, and recommendations |
+
+The analyse endpoint reads all `mutual_fund` holdings from the portfolio, fetches their stock-level holdings from Yahoo Finance via mfapi.in, then returns:
+- Per-fund breakdown (fund house, category, top holdings)
+- Stock overlap matrix (stocks held by more than one fund, with per-fund allocation %)
+- Recommendations (consolidation suggestions, missing diversification)
 
 Supported asset types: `stock`, `fd`, `mutual_fund`, `gold`, `other`
 

@@ -2,6 +2,33 @@
 
 import { useEffect, useState, useRef, FormEvent } from "react";
 
+// ── Analysis types ──────────────────────────────────────────────────────────
+
+interface FundAllocation {
+  fundName: string;
+  percentage: number;
+}
+
+interface StockOverlap {
+  stockName: string;
+  symbol?: string;
+  funds: FundAllocation[];
+}
+
+interface PortfolioFundAnalysis {
+  name: string;
+  schemeCode?: number;
+  fundHouse?: string;
+  category?: string;
+  holdings: { name: string; symbol?: string; percentage: number }[];
+}
+
+interface PortfolioAnalysis {
+  funds: PortfolioFundAnalysis[];
+  overlaps: StockOverlap[];
+  recommendations: string[];
+}
+
 type AssetType = "stock" | "fd" | "mutual_fund" | "gold" | "other";
 
 interface Holding {
@@ -62,6 +89,10 @@ export default function PortfolioPage() {
   const [saving, setSaving] = useState(false);
   const [priceFetching, setPriceFetching] = useState(false);
   const [priceError, setPriceError] = useState("");
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysis, setAnalysis] = useState<PortfolioAnalysis | null>(null);
+  const [analysing, setAnalysing] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = () =>
@@ -200,11 +231,37 @@ export default function PortfolioPage() {
 
   const isStock = form.asset_type === "stock";
 
+  const hasMFs = holdings.some((h) => h.asset_type === "mutual_fund");
+
+  async function handleAnalyse() {
+    setAnalysing(true);
+    setAnalysisError("");
+    setAnalysis(null);
+    setShowAnalysis(true);
+    try {
+      const res = await fetch("/api/portfolio/analyse");
+      if (!res.ok) throw new Error(await res.text());
+      const data: PortfolioAnalysis = await res.json();
+      setAnalysis(data);
+    } catch (err) {
+      setAnalysisError("Failed to analyse portfolio: " + (err as Error).message);
+    } finally {
+      setAnalysing(false);
+    }
+  }
+
   return (
     <>
       <div className="portfolio-header">
         <h1>Portfolio</h1>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add Holding</button>
+        <div style={{ display: "flex", gap: "0.75rem" }}>
+          {hasMFs && (
+            <button className="btn btn-secondary" onClick={handleAnalyse}>
+              Analyse Portfolio
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Holding</button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -301,7 +358,132 @@ export default function PortfolioPage() {
         </div>
       ))}
 
-      {/* Modal */}
+      {/* Analysis Modal */}
+      {showAnalysis && (
+        <div className="overlay" onClick={(e) => e.target === e.currentTarget && setShowAnalysis(false)}>
+          <div className="modal" style={{ maxWidth: 820 }}>
+            <div className="modal-header">
+              <h2>Portfolio Analysis</h2>
+              <button className="close-btn" onClick={() => setShowAnalysis(false)}>×</button>
+            </div>
+
+            {analysing && <p style={{ color: "var(--text-muted)" }}>Fetching fund holdings… this may take a moment.</p>}
+            {analysisError && <p style={{ color: "var(--bearish)" }}>{analysisError}</p>}
+
+            {analysis && (
+              <>
+                {/* Funds overview */}
+                <section style={{ marginBottom: "1.5rem" }}>
+                  <h3 style={{ fontSize: "0.85rem", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.75rem", fontWeight: 600 }}>
+                    Mutual Funds ({analysis.funds.length})
+                  </h3>
+                  {analysis.funds.length === 0
+                    ? <p style={{ color: "var(--text-muted)" }}>No mutual funds found.</p>
+                    : (
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Fund</th>
+                            <th>Fund House</th>
+                            <th>Category</th>
+                            <th style={{ textAlign: "right" }}>Top Holdings</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analysis.funds.map((f) => (
+                            <tr key={f.name}>
+                              <td style={{ fontWeight: 500 }}>{f.name}</td>
+                              <td style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{f.fundHouse || "—"}</td>
+                              <td>
+                                {f.category
+                                  ? <span className="badge badge-mutual_fund">{f.category}</span>
+                                  : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                              </td>
+                              <td style={{ textAlign: "right", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                                {f.holdings.length > 0
+                                  ? f.holdings.slice(0, 3).map((h) => `${h.name} (${h.percentage.toFixed(1)}%)`).join(", ")
+                                  : "No holdings data"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  }
+                </section>
+
+                {/* Overlap */}
+                {analysis.overlaps.length > 0 && (
+                  <section style={{ marginBottom: "1.5rem" }}>
+                    <h3 style={{ fontSize: "0.85rem", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.75rem", fontWeight: 600 }}>
+                      Stock Overlap ({analysis.overlaps.length} shared stocks)
+                    </h3>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Stock</th>
+                          {analysis.funds.map((f) => (
+                            <th key={f.name} style={{ textAlign: "right" }}>{f.name.split(" ").slice(0, 2).join(" ")}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analysis.overlaps.slice(0, 20).map((o) => {
+                          const byFund = Object.fromEntries(o.funds.map((f) => [f.fundName, f.percentage]));
+                          return (
+                            <tr key={o.stockName}>
+                              <td style={{ fontWeight: 500 }}>{o.stockName}</td>
+                              {analysis.funds.map((f) => (
+                                <td key={f.name} style={{ textAlign: "right", color: byFund[f.name] != null ? "var(--neutral)" : "var(--text-muted)" }}>
+                                  {byFund[f.name] != null ? `${byFund[f.name].toFixed(1)}%` : "—"}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {analysis.overlaps.length > 20 && (
+                      <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "0.5rem" }}>
+                        … and {analysis.overlaps.length - 20} more shared stocks.
+                      </p>
+                    )}
+                  </section>
+                )}
+
+                {analysis.overlaps.length === 0 && analysis.funds.some((f) => f.holdings.length > 0) && (
+                  <section style={{ marginBottom: "1.5rem" }}>
+                    <p style={{ color: "var(--bullish)" }}>No stock overlap found — funds are well-diversified from each other.</p>
+                  </section>
+                )}
+
+                {/* Recommendations */}
+                <section>
+                  <h3 style={{ fontSize: "0.85rem", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.75rem", fontWeight: 600 }}>
+                    Recommendations
+                  </h3>
+                  <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                    {analysis.recommendations.map((r, i) => (
+                      <li key={i} style={{
+                        padding: "0.6rem 0.9rem",
+                        borderRadius: 6,
+                        background: "var(--surface-hover)",
+                        border: "1px solid var(--border)",
+                        fontSize: "0.9rem",
+                        lineHeight: 1.5,
+                      }}>
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Holding Modal */}
       {showModal && (
         <div className="overlay" onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal">
