@@ -164,7 +164,7 @@ function StockSearch() {
         ref={inputRef}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Enter NSE symbol (e.g. RELIANCE)"
+        placeholder="Search stock (e.g. RELIANCE)"
         style={{
           background: "#1a1d27",
           border: "1px solid #2a2f45",
@@ -192,7 +192,7 @@ function StockSearch() {
           whiteSpace: "nowrap",
         }}
       >
-        Deep Research
+        View Stock
       </button>
     </form>
   );

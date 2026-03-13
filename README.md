@@ -24,7 +24,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
   - `internal/portfolio` - portfolio holdings CRUD
   - `internal/portfolio/db` - sqlc-generated type-safe query code (do not edit)
-- **Next.js frontend** (`frontend/`) - indicators dashboard and portfolio management UI on `:3000`, with a live market news feed (tabbed: general market news and per-stock news) and stock deep research at `/stock/[symbol]`
+- **Next.js frontend** (`frontend/`) - indicators dashboard and portfolio management UI on `:3000`, with a live market news feed (tabbed: general market news and per-stock news) and individual stock view at `/stock/[symbol]` (current price, key metrics, quarterly/financial tables, documents, and RSS news feed)
 - **PostgreSQL** - stores portfolio holdings
 
 ## Running
