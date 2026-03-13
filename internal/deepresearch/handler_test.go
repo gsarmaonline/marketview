@@ -26,7 +26,7 @@ func TestHandleDeepResearch_Success(t *testing.T) {
 		{SeqNumber: 1, Issuer: "RELIANCE INDUSTRIES", Year: "2024", Subject: "Annual Report 2024", PDFLink: "http://example.com/2024.pdf"},
 		{SeqNumber: 2, Issuer: "RELIANCE INDUSTRIES", Year: "2023", Subject: "Annual Report 2023", PDFLink: "http://example.com/2023.pdf"},
 	}
-	svc := NewService(&mockProvider{name: "NSE", reports: reports})
+	svc := NewService(nil, &mockProvider{name: "NSE", reports: reports})
 	r := newTestRouter(svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/stock/RELIANCE/deep-research", nil)
@@ -53,7 +53,7 @@ func TestHandleDeepResearch_Success(t *testing.T) {
 }
 
 func TestHandleDeepResearch_AllProvidersFail(t *testing.T) {
-	svc := NewService(&mockProvider{name: "NSE", err: errors.New("NSE unavailable")})
+	svc := NewService(nil, &mockProvider{name: "NSE", err: errors.New("NSE unavailable")})
 	r := newTestRouter(svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/stock/TCS/deep-research", nil)
@@ -74,7 +74,7 @@ func TestHandleDeepResearch_AllProvidersFail(t *testing.T) {
 }
 
 func TestHandleDeepResearch_SymbolNormalisedInResponse(t *testing.T) {
-	svc := NewService(&mockProvider{name: "BSE", reports: []AnnualReport{}})
+	svc := NewService(nil, &mockProvider{name: "BSE", reports: []AnnualReport{}})
 	r := newTestRouter(svc)
 
 	// Send lowercase symbol — service should normalise it.
@@ -96,7 +96,7 @@ func TestHandleDeepResearch_SymbolNormalisedInResponse(t *testing.T) {
 }
 
 func TestHandleDeepResearch_EmptyReports(t *testing.T) {
-	svc := NewService(&mockProvider{name: "BSE", reports: []AnnualReport{}})
+	svc := NewService(nil, &mockProvider{name: "BSE", reports: []AnnualReport{}})
 	r := newTestRouter(svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/stock/WIPRO/deep-research", nil)
@@ -119,7 +119,7 @@ func TestHandleDeepResearch_EmptyReports(t *testing.T) {
 func TestHandleDeepResearch_FallbackProvider(t *testing.T) {
 	// First provider fails, second succeeds — handler returns 200 with BSE data.
 	bseReports := []AnnualReport{{SeqNumber: 1, Year: "2024"}}
-	svc := NewService(
+	svc := NewService(nil,
 		&mockProvider{name: "NSE", err: errors.New("NSE down")},
 		&mockProvider{name: "BSE", reports: bseReports},
 	)

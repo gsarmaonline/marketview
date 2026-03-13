@@ -1,6 +1,7 @@
 package deepresearch
 
 import (
+	"context"
 	"errors"
 	"testing"
 )
@@ -26,7 +27,7 @@ func TestService_FetchAnnualReports_FirstProviderSucceeds(t *testing.T) {
 		{SeqNumber: 1, Issuer: "RELIANCE", Year: "2024", Subject: "Annual Report 2024", PDFLink: "http://example.com/2024.pdf"},
 	}
 	p := &mockProvider{name: "NSE", reports: want}
-	svc := NewService(p)
+	svc := NewService(nil, p)
 
 	reports, source, err := svc.FetchAnnualReports("RELIANCE")
 	if err != nil {
@@ -44,7 +45,7 @@ func TestService_FetchAnnualReports_FirstFails_SecondSucceeds(t *testing.T) {
 	want := []AnnualReport{{SeqNumber: 1, Year: "2023"}}
 	p1 := &mockProvider{name: "NSE", err: errors.New("NSE down")}
 	p2 := &mockProvider{name: "BSE", reports: want}
-	svc := NewService(p1, p2)
+	svc := NewService(nil, p1, p2)
 
 	reports, source, err := svc.FetchAnnualReports("TCS")
 	if err != nil {
@@ -61,7 +62,7 @@ func TestService_FetchAnnualReports_FirstFails_SecondSucceeds(t *testing.T) {
 func TestService_FetchAnnualReports_AllFail(t *testing.T) {
 	p1 := &mockProvider{name: "NSE", err: errors.New("NSE down")}
 	p2 := &mockProvider{name: "BSE", err: errors.New("BSE down")}
-	svc := NewService(p1, p2)
+	svc := NewService(nil, p1, p2)
 
 	_, _, err := svc.FetchAnnualReports("INFY")
 	if err == nil {
@@ -70,7 +71,7 @@ func TestService_FetchAnnualReports_AllFail(t *testing.T) {
 }
 
 func TestService_FetchAnnualReports_NoProviders(t *testing.T) {
-	svc := NewService()
+	svc := NewService(nil)
 	_, _, err := svc.FetchAnnualReports("WIPRO")
 	if err == nil {
 		t.Error("expected error with no providers, got nil")
@@ -79,7 +80,7 @@ func TestService_FetchAnnualReports_NoProviders(t *testing.T) {
 
 func TestService_FetchAnnualReports_NormalisesSymbol(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(p)
+	svc := NewService(nil, p)
 
 	_, _, err := svc.FetchAnnualReports("  reliance  ")
 	if err != nil {
@@ -92,7 +93,7 @@ func TestService_FetchAnnualReports_NormalisesSymbol(t *testing.T) {
 
 func TestService_FetchAnnualReports_EmptyReportsOK(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(p)
+	svc := NewService(nil, p)
 
 	reports, source, err := svc.FetchAnnualReports("SBIN")
 	if err != nil {
@@ -113,7 +114,7 @@ func TestService_FetchAnnualReports_TriesProvidersInOrder(t *testing.T) {
 	p3 := &mockProvider{name: "C", reports: []AnnualReport{{Year: "2024"}}}
 
 	// wrap to track order
-	tracing := NewService(
+	tracing := NewService(nil,
 		&tracingProvider{inner: p1, order: &order},
 		&tracingProvider{inner: p2, order: &order},
 		&tracingProvider{inner: p3, order: &order},
@@ -147,9 +148,9 @@ func TestService_Fetch_ReturnsDeepResearch(t *testing.T) {
 		{SeqNumber: 1, Issuer: "HDFC", Year: "2024"},
 	}
 	p := &mockProvider{name: "NSE", reports: reports}
-	svc := NewService(p)
+	svc := NewService(nil, p)
 
-	result, err := svc.Fetch("hdfcbank")
+	result, err := svc.Fetch(context.Background(), "hdfcbank")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -166,9 +167,9 @@ func TestService_Fetch_ReturnsDeepResearch(t *testing.T) {
 
 func TestService_Fetch_ErrorPropagated(t *testing.T) {
 	p := &mockProvider{name: "NSE", err: errors.New("down")}
-	svc := NewService(p)
+	svc := NewService(nil, p)
 
-	_, err := svc.Fetch("RELIANCE")
+	_, err := svc.Fetch(context.Background(), "RELIANCE")
 	if err == nil {
 		t.Error("expected error when all providers fail, got nil")
 	}
@@ -176,9 +177,9 @@ func TestService_Fetch_ErrorPropagated(t *testing.T) {
 
 func TestService_Fetch_SymbolNormalised(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(p)
+	svc := NewService(nil, p)
 
-	result, err := svc.Fetch("  tcs  ")
+	result, err := svc.Fetch(context.Background(), "  tcs  ")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

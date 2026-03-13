@@ -16,6 +16,20 @@ services:
       retries: 5
     restart: unless-stopped
 
+  pdf-parser:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    ports:
+      - "5001:5001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
   backend:
     build:
       context: .
@@ -28,8 +42,11 @@ services:
       - DB_USER=marketview
       - DB_PASSWORD=marketview
       - DB_NAME=marketview
+      - PARSER_URL=http://pdf-parser:5001
     depends_on:
       postgres:
+        condition: service_healthy
+      pdf-parser:
         condition: service_healthy
     restart: unless-stopped
 
