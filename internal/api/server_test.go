@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"math/rand"
 	"net/http"
@@ -25,7 +26,8 @@ func randomSymbol() string {
 }
 
 func newTestServer(store *news.Store) *Server {
-	return New(nil, nil, store)
+	s, _ := New(context.Background(), nil, nil, nil, store, nil)
+	return s
 }
 
 func TestStockNews_EmptyStore(t *testing.T) {

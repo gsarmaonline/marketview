@@ -25,7 +25,7 @@ func (h *Handler) HandleDeepResearch(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Fetch(symbol)
+	result, err := h.service.Fetch(c.Request.Context(), symbol)
 	if err != nil {
 		log.Printf("deep research error for %s: %v", symbol, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch deep research data"})

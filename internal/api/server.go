@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"marketview/internal/db"
 	"marketview/internal/deepresearch"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
@@ -25,10 +25,10 @@ type Server struct {
 	shutdown   func()
 }
 
-func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store, drHandler *deepresearch.Handler) (*Server, error) {
-	pool, err := db.Open(ctx)
-	if err != nil {
-		return nil, err
+func New(ctx context.Context, pool *pgxpool.Pool, inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store, drHandler *deepresearch.Handler) (*Server, error) {
+	shutdown := func() {}
+	if pool != nil {
+		shutdown = pool.Close
 	}
 
 	r := gin.Default()
@@ -38,7 +38,7 @@ func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund
 		mfHandler:  mfHandler,
 		drHandler:  drHandler,
 		newsStore:  newsStore,
-		shutdown:   pool.Close,
+		shutdown:   shutdown,
 	}
 
 	r.Use(func(c *gin.Context) {
@@ -59,15 +59,17 @@ func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund
 	r.GET("/api/mutual-fund/:schemeCode", mfHandler.HandleDetails)
 	r.GET("/api/stock/:symbol/deep-research", drHandler.HandleDeepResearch)
 
-	// Portfolio routes
-	repo := portfolio.NewRepository(pool)
-	ph := portfolio.NewHandler(repo)
+	// Portfolio routes (requires a DB pool)
+	if pool != nil {
+		repo := portfolio.NewRepository(pool)
+		ph := portfolio.NewHandler(repo)
 
-	portfolioMux := http.NewServeMux()
-	ph.Register(portfolioMux)
+		portfolioMux := http.NewServeMux()
+		ph.Register(portfolioMux)
 
-	r.Any("/api/portfolio/holdings", gin.WrapH(portfolioMux))
-	r.Any("/api/portfolio/holdings/*path", gin.WrapH(portfolioMux))
+		r.Any("/api/portfolio/holdings", gin.WrapH(portfolioMux))
+		r.Any("/api/portfolio/holdings/*path", gin.WrapH(portfolioMux))
+	}
 
 	return s, nil
 }
