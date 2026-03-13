@@ -8,7 +8,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
 - Live market news feed (Economic Times, Moneycontrol, Business Standard) with per-stock news pipeline
 - Portfolio management: stocks, FDs, mutual funds, gold, and other assets
 - Mutual fund deep research: holdings breakdown, NAV history, allocation stats
-- Per-stock deep research: annual reports (NSE with BSE fallback), financial statement extraction (P&L, Balance Sheet, Cash Flow, Highlights) and supply chain extraction from Related Party Transactions; optional Claude-powered gap-fill for sparse regex results
+- Per-stock deep research: annual reports (NSE with BSE fallback), financial statements (P&L, Balance Sheet, Cash Flow, Highlights) fetched live from Yahoo Finance, and supply chain extraction from Related Party Transactions via PDF parsing
 
 ## Architecture
 
@@ -18,14 +18,9 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
-<<<<<<< HEAD
   - `internal/stock` - stock price fetching via Yahoo Finance (used by the portfolio to auto-populate current value)
-  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), PDF parsing, supply chain extraction
-- **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for supply chain extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
-=======
-  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), PDF parsing, financial statement extraction (P&L, Balance Sheet, Cash Flow, Highlights) and supply chain extraction; results cached in Postgres
-- **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for financial and supply chain extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs; hybrid mode uses Claude (via `ANTHROPIC_API_KEY`) to fill fields that regex misses
->>>>>>> 2b4d091 (Add financial statement extraction to deep research with hybrid Claude fallback)
+  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), financials fetched live from Yahoo Finance, supply chain extraction from PDFs cached in Postgres
+- **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for supply chain (Related Party Transactions) extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
   - `internal/portfolio` - portfolio holdings CRUD
   - `internal/portfolio/db` - sqlc-generated type-safe query code (do not edit)
@@ -52,7 +47,6 @@ cd frontend && npm run dev  # frontend on :3000
 
 Key environment variables (see `.env.example` for the full list):
 - `PARSER_URL` (default `http://localhost:5001`) - location of the PDF parser service
-- `ANTHROPIC_API_KEY` - when set, enables Claude gap-fill for financial fields that regex cannot extract; omit to use regex-only mode (no API cost)
 
 ## Screenshots
 

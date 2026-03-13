@@ -22,8 +22,6 @@ services:
       dockerfile: Dockerfile.python
     ports:
       - "5003:5001"
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]

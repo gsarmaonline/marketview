@@ -9,10 +9,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// StoreInterface defines the contract for persisting supply chain and financial data.
+// StoreInterface defines the contract for persisting supply chain data.
 type StoreInterface interface {
-	Get(ctx context.Context, symbol, reportYear string) ([]SupplyChainEntity, *Financials, bool, error)
-	Set(ctx context.Context, symbol, reportYear string, entities []SupplyChainEntity, financials *Financials) error
+	Get(ctx context.Context, symbol, reportYear string) ([]SupplyChainEntity, bool, error)
+	Set(ctx context.Context, symbol, reportYear string, entities []SupplyChainEntity) error
 }
 
 // Store persists parsed supply chain results in Postgres so that the
@@ -26,58 +26,40 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-// Get returns stored entities and financials for (symbol, reportYear). The third
+// Get returns stored supply chain entities for (symbol, reportYear). The second
 // return value is false when no entry exists yet.
-func (s *Store) Get(ctx context.Context, symbol, reportYear string) ([]SupplyChainEntity, *Financials, bool, error) {
+func (s *Store) Get(ctx context.Context, symbol, reportYear string) ([]SupplyChainEntity, bool, error) {
 	var entitiesRaw []byte
-	var financialsRaw []byte
 	err := s.pool.QueryRow(ctx,
-		`SELECT entities, financials FROM supply_chain_store WHERE symbol=$1 AND report_year=$2`,
+		`SELECT entities FROM supply_chain_store WHERE symbol=$1 AND report_year=$2`,
 		symbol, reportYear,
-	).Scan(&entitiesRaw, &financialsRaw)
+	).Scan(&entitiesRaw)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil, false, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return nil, nil, false, err
+		return nil, false, err
 	}
 
 	var entities []SupplyChainEntity
 	if err := json.Unmarshal(entitiesRaw, &entities); err != nil {
-		return nil, nil, false, err
+		return nil, false, err
 	}
-
-	var financials *Financials
-	if len(financialsRaw) > 0 {
-		financials = &Financials{}
-		if err := json.Unmarshal(financialsRaw, financials); err != nil {
-			return nil, nil, false, err
-		}
-	}
-
-	return entities, financials, true, nil
+	return entities, true, nil
 }
 
-// Set stores (or replaces) the parsed entities and financials for (symbol, reportYear).
-func (s *Store) Set(ctx context.Context, symbol, reportYear string, entities []SupplyChainEntity, financials *Financials) error {
+// Set stores (or replaces) the parsed entities for (symbol, reportYear).
+func (s *Store) Set(ctx context.Context, symbol, reportYear string, entities []SupplyChainEntity) error {
 	entitiesRaw, err := json.Marshal(entities)
 	if err != nil {
 		return err
 	}
 
-	var financialsRaw []byte
-	if financials != nil {
-		financialsRaw, err = json.Marshal(financials)
-		if err != nil {
-			return err
-		}
-	}
-
 	_, err = s.pool.Exec(ctx,
-		`INSERT INTO supply_chain_store (symbol, report_year, entities, financials)
-		 VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (symbol, report_year) DO UPDATE SET entities=$3, financials=$4, parsed_at=NOW()`,
-		symbol, reportYear, entitiesRaw, financialsRaw,
+		`INSERT INTO supply_chain_store (symbol, report_year, entities)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (symbol, report_year) DO UPDATE SET entities=$3, parsed_at=NOW()`,
+		symbol, reportYear, entitiesRaw,
 	)
 	return err
 }

@@ -64,15 +64,12 @@ type FinancialHighlights struct {
 	DebtToEquity      string `json:"debtToEquity,omitempty"`
 }
 
-// Financials bundles all financial statement data extracted from an annual report.
+// Financials bundles all financial statement data for a stock.
 type Financials struct {
 	PnL          ProfitAndLoss       `json:"pnl"`
 	BalanceSheet BalanceSheet        `json:"balanceSheet"`
 	CashFlow     CashFlow            `json:"cashFlow"`
 	Highlights   FinancialHighlights `json:"highlights"`
-	// ClaudeFilled lists "section.field" keys that regex missed and Claude populated.
-	// Empty when regex was sufficient or Claude was not enabled.
-	ClaudeFilled []string `json:"_claudeFilled,omitempty"`
 }
 
 // DeepResearch aggregates all deep research data for a stock.
