@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.30.0
 
-package db
+package drdb
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ type Holding struct {
 	CurrentValue pgtype.Numeric     `json:"current_value"`
 	BuyDate      pgtype.Date        `json:"buy_date"`
 	Notes        string             `json:"notes"`
-	Metadata     json.RawMessage    `json:"metadata"`
+	Metadata     []byte             `json:"metadata"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
@@ -27,14 +27,14 @@ type Holding struct {
 type ShareholdingPatternStore struct {
 	Symbol     string             `json:"symbol"`
 	QuarterEnd string             `json:"quarter_end"`
-	Pattern    []byte             `json:"pattern"`
+	Pattern    json.RawMessage    `json:"pattern"`
 	FetchedAt  pgtype.Timestamptz `json:"fetched_at"`
 }
 
 type SupplyChainStore struct {
 	Symbol     string             `json:"symbol"`
 	ReportYear string             `json:"report_year"`
-	Entities   []byte             `json:"entities"`
+	Entities   json.RawMessage    `json:"entities"`
 	Financials []byte             `json:"financials"`
 	ParsedAt   pgtype.Timestamptz `json:"parsed_at"`
 }
