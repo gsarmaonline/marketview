@@ -224,6 +224,119 @@ async function captureAll() {
 }
 
 // ---------------------------------------------------------------------------
+// Portfolio seeding helpers
+// ---------------------------------------------------------------------------
+
+const RANDOM_STOCKS = [
+  { name: 'RELIANCE',  qty: 10,  buy_price: 2400, notes: 'Reliance Industries' },
+  { name: 'TCS',       qty: 5,   buy_price: 3800, notes: 'Tata Consultancy Services' },
+  { name: 'HDFCBANK',  qty: 20,  buy_price: 1650, notes: 'HDFC Bank' },
+  { name: 'INFY',      qty: 15,  buy_price: 1450, notes: 'Infosys' },
+  { name: 'WIPRO',     qty: 30,  buy_price: 480,  notes: 'Wipro Ltd' },
+  { name: 'ICICIBANK', qty: 25,  buy_price: 1100, notes: 'ICICI Bank' },
+  { name: 'BHARTIARTL',qty: 8,   buy_price: 1700, notes: 'Bharti Airtel' },
+];
+
+/**
+ * Seeds the portfolio with a fixed set of random stock holdings.
+ * Returns the list of created holding IDs so they can be cleaned up.
+ */
+async function seedPortfolio(baseUrl) {
+  const ids = [];
+  for (const stock of RANDOM_STOCKS) {
+    const body = {
+      asset_type: 'stock',
+      name: stock.name,
+      quantity: stock.qty,
+      buy_price: stock.buy_price,
+      current_value: parseFloat((stock.buy_price * stock.qty * (0.9 + Math.random() * 0.25)).toFixed(2)),
+      buy_date: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      notes: stock.notes,
+      metadata: {},
+    };
+    const res = await fetch(`${baseUrl}/api/portfolio/holdings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      console.warn(`  warning: failed to add ${stock.name}: ${res.status}`);
+      continue;
+    }
+    const data = await res.json();
+    if (data.id) ids.push(data.id);
+  }
+  return ids;
+}
+
+/**
+ * Deletes holdings by ID to restore a clean portfolio state.
+ */
+async function cleanupPortfolio(baseUrl, ids) {
+  for (const id of ids) {
+    await fetch(`${baseUrl}/api/portfolio/holdings/${id}`, { method: 'DELETE' }).catch(() => {});
+  }
+}
+
+/**
+ * Captures portfolio-filled screenshots: seeds holdings, takes screenshots, cleans up.
+ */
+async function capturePortfolioFilled() {
+  const { baseUrl, outputDir, viewports, pageTimeout } = config;
+
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  console.log('  seeding portfolio with random stocks...');
+  const seededIds = await seedPortfolio(baseUrl);
+  console.log(`  added ${seededIds.length} holdings (ids: ${seededIds.join(', ')})`);
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  const results = [];
+
+  try {
+    for (const vp of viewports) {
+      const context = await browser.newContext({
+        viewport: { width: vp.width, height: vp.height },
+        reducedMotion: 'reduce',
+      });
+
+      const url = `${baseUrl}/portfolio`;
+      const filename = `portfolio-filled-${vp.name}.png`;
+      const filepath = path.join(outputDir, filename);
+
+      console.log(`  portfolio-filled  [${vp.name} ${vp.width}x${vp.height}]`);
+
+      const page = await context.newPage();
+      try {
+        await page.goto(url, { waitUntil: 'networkidle', timeout: pageTimeout });
+        await page.waitForSelector('.summary-grid, main', { timeout: pageTimeout }).catch(() => {});
+        // Wait for table rows to appear
+        await page.waitForSelector('table tbody tr', { timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(600);
+
+        await page.screenshot({ path: filepath, fullPage: true });
+        results.push({ page: 'portfolio-filled', viewport: vp.name, file: filepath });
+      } finally {
+        await page.close();
+      }
+
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+  }
+
+  console.log('  cleaning up seeded holdings...');
+  await cleanupPortfolio(baseUrl, seededIds);
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -231,14 +344,14 @@ async function main() {
   console.log('MarketView screenshot framework');
   console.log(`  base URL : ${config.baseUrl}`);
   console.log(`  output   : ${config.outputDir}`);
-  console.log(`  pages    : ${config.pages.map((p) => p.name).join(', ')}`);
+  console.log(`  pages    : ${config.pages.map((p) => p.name).join(', ')}, portfolio-filled`);
   console.log(`  viewports: ${config.viewports.map((v) => v.name).join(', ')}`);
   console.log('');
 
-  console.log('[ 1/3 ] checking server...');
+  console.log('[ 1/4 ] checking server...');
   const cleanup = await ensureServer();
 
-  console.log('[ 2/3 ] capturing screenshots...');
+  console.log('[ 2/4 ] capturing standard screenshots...');
   let results;
   try {
     results = await captureAll();
@@ -246,7 +359,11 @@ async function main() {
     cleanup();
   }
 
-  console.log('[ 3/3 ] done.');
+  console.log('[ 3/4 ] capturing portfolio-filled screenshots...');
+  const filledResults = await capturePortfolioFilled();
+  results = results.concat(filledResults);
+
+  console.log('[ 4/4 ] done.');
   console.log(`\n${results.length} screenshots saved to ${config.outputDir}/`);
   results.forEach((r) => {
     console.log(`  ${path.basename(r.file)}`);
