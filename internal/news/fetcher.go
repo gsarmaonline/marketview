@@ -39,9 +39,9 @@ type source struct {
 }
 
 var sources = []source{
-	{name: "Economic Times", url: "https://economictimes.indiatimes.com/markets/rss.cms"},
-	{name: "Moneycontrol", url: "https://www.moneycontrol.com/rss/marketsnews.xml"},
-	{name: "Business Standard", url: "https://www.business-standard.com/rss/markets-106.rss"},
+	{name: "The Hindu BusinessLine", url: "https://www.thehindubusinessline.com/markets/feeder/default.rss"},
+	{name: "NDTV Profit", url: "https://feeds.feedburner.com/ndtvprofit-latest"},
+	{name: "Investing.com India", url: "https://in.investing.com/rss/news.rss"},
 }
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
@@ -116,6 +116,7 @@ var dateFormats = []string{
 	"Mon, 02 Jan 2006 15:04:05 -0700",
 	"2006-01-02T15:04:05Z07:00",
 	"2006-01-02 15:04:05 -0700",
+	"2006-01-02 15:04:05",
 }
 
 func parseDate(s string) (time.Time, error) {

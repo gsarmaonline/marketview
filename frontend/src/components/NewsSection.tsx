@@ -12,9 +12,9 @@ export interface NewsItem {
 }
 
 const sourceColors: Record<string, string> = {
-  "Economic Times": "#ff6b35",
-  "Moneycontrol": "#0077cc",
-  "Business Standard": "#c0392b",
+  "The Hindu BusinessLine": "#e63946",
+  "NDTV Profit": "#0077cc",
+  "Investing.com India": "#1a7f5a",
 };
 
 function timeAgo(iso: string): string {
