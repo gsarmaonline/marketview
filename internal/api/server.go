@@ -1,14 +1,17 @@
 package api
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"marketview/internal/db"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
 	"marketview/internal/news"
+	"marketview/internal/portfolio"
 )
 
 // Server wires up all HTTP routes and their dependencies.
@@ -17,16 +20,27 @@ type Server struct {
 	indicators []indicators.Indicator
 	mfHandler  *mutualfund.Handler
 	newsStore  *news.Store
+	shutdown   func()
 }
 
-func New(inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store) *Server {
-	r := gin.Default()
+func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store) (*Server, error) {
+	pool, err := db.Open(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	s := &Server{router: r, indicators: inds, mfHandler: mfHandler, newsStore: newsStore}
+	r := gin.Default()
+	s := &Server{
+		router:     r,
+		indicators: inds,
+		mfHandler:  mfHandler,
+		newsStore:  newsStore,
+		shutdown:   pool.Close,
+	}
 
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
-		c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
@@ -41,11 +55,25 @@ func New(inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *
 	r.GET("/api/mutual-fund/search", mfHandler.HandleSearch)
 	r.GET("/api/mutual-fund/:schemeCode", mfHandler.HandleDetails)
 
-	return s
+	// Portfolio routes
+	repo := portfolio.NewRepository(pool)
+	ph := portfolio.NewHandler(repo)
+
+	portfolioMux := http.NewServeMux()
+	ph.Register(portfolioMux)
+
+	r.Any("/api/portfolio/holdings", gin.WrapH(portfolioMux))
+	r.Any("/api/portfolio/holdings/*path", gin.WrapH(portfolioMux))
+
+	return s, nil
 }
 
 func (s *Server) Run(addr string) error {
 	return s.router.Run(addr)
+}
+
+func (s *Server) Shutdown() {
+	s.shutdown()
 }
 
 func (s *Server) handleNews(c *gin.Context) {
@@ -58,8 +86,6 @@ func (s *Server) handleNews(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
-// handleStockNews returns news stored in the pipeline for a specific stock symbol.
-// Example: GET /api/news/stock/HDFCBANK
 func (s *Server) handleStockNews(c *gin.Context) {
 	symbol := c.Param("symbol")
 	items := s.newsStore.Get(symbol)

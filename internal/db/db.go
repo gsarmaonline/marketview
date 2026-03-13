@@ -1,0 +1,61 @@
+package db
+
+import (
+	"context"
+	_ "embed"
+	"fmt"
+	"os"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+//go:embed schema.sql
+var schema string
+
+// Open connects to the database and runs migrations in one step.
+func Open(ctx context.Context) (*pgxpool.Pool, error) {
+	pool, err := Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := Migrate(ctx, pool); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("migration failed: %w", err)
+	}
+	return pool, nil
+}
+
+func Connect(ctx context.Context) (*pgxpool.Pool, error) {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		host := getenv("DB_HOST", "localhost")
+		port := getenv("DB_PORT", "5432")
+		user := getenv("DB_USER", "marketview")
+		password := getenv("DB_PASSWORD", "marketview")
+		dbname := getenv("DB_NAME", "marketview")
+		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, password, host, port, dbname)
+	}
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to database: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("database ping failed: %w", err)
+	}
+
+	return pool, nil
+}
+
+func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := pool.Exec(ctx, schema)
+	return err
+}
+
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}

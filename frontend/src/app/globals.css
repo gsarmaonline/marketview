@@ -46,3 +46,154 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+/* ── Nav ── */
+.nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  height: 56px;
+}
+.nav-brand { color: var(--text); font-weight: 700; font-size: 1.2rem; text-decoration: none; }
+.nav-links { display: flex; gap: 1.5rem; }
+.nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.95rem; transition: color 0.15s; }
+.nav-links a:hover { color: var(--text); text-decoration: none; }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
+
+h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text); }
+h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
+
+/* ── Cards (portfolio) ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Badges ── */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.badge-stock       { background: rgba(99,102,241,0.15); color: #818cf8; }
+.badge-fd          { background: var(--bullish-bg); color: var(--bullish); }
+.badge-mutual_fund { background: var(--neutral-bg); color: var(--neutral); }
+.badge-gold        { background: rgba(234,179,8,0.15); color: #facc15; }
+.badge-other       { background: rgba(148,163,184,0.1); color: #94a3b8; }
+
+/* ── Table ── */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+th { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); background: var(--surface); }
+tr:hover td { background: var(--surface-hover); }
+td { color: var(--text); font-size: 0.9rem; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-primary   { background: #6366f1; color: white; }
+.btn-secondary { background: var(--surface-hover); color: var(--text); border: 1px solid var(--border); }
+.btn-danger    { background: var(--bearish-bg); color: var(--bearish); border: 1px solid var(--bearish-border); }
+.btn-sm { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+
+/* ── Form ── */
+.form-group { margin-bottom: 1rem; }
+label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px; color: var(--text-muted); }
+input, select, textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus { border-color: #6366f1; }
+input:disabled { opacity: 0.4; cursor: not-allowed; }
+textarea { resize: vertical; min-height: 80px; }
+select option { background: var(--surface); }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* ── Modal ── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.modal-header h2 { margin: 0; }
+.close-btn {
+  background: none; border: none; font-size: 1.4rem;
+  cursor: pointer; color: var(--text-muted); line-height: 1;
+}
+.close-btn:hover { color: var(--text); }
+
+/* ── Summary cards ── */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+.summary-card .label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+.summary-card .value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; color: var(--text); }
+.value.positive { color: var(--bullish); }
+.value.negative { color: var(--bearish); }
+
+/* ── Portfolio header ── */
+.portfolio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+/* ── Empty state ── */
+.empty { text-align: center; padding: 3rem; color: var(--text-muted); }
