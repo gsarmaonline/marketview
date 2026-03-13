@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"marketview/internal/db"
+	"marketview/internal/deepresearch"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
 	"marketview/internal/news"
@@ -19,11 +20,12 @@ type Server struct {
 	router     *gin.Engine
 	indicators []indicators.Indicator
 	mfHandler  *mutualfund.Handler
+	drHandler  *deepresearch.Handler
 	newsStore  *news.Store
 	shutdown   func()
 }
 
-func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store) (*Server, error) {
+func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund.Handler, newsStore *news.Store, drHandler *deepresearch.Handler) (*Server, error) {
 	pool, err := db.Open(ctx)
 	if err != nil {
 		return nil, err
@@ -34,6 +36,7 @@ func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund
 		router:     r,
 		indicators: inds,
 		mfHandler:  mfHandler,
+		drHandler:  drHandler,
 		newsStore:  newsStore,
 		shutdown:   pool.Close,
 	}
@@ -54,6 +57,7 @@ func New(ctx context.Context, inds []indicators.Indicator, mfHandler *mutualfund
 	r.GET("/api/news/stock/:symbol", s.handleStockNews)
 	r.GET("/api/mutual-fund/search", mfHandler.HandleSearch)
 	r.GET("/api/mutual-fund/:schemeCode", mfHandler.HandleDetails)
+	r.GET("/api/stock/:symbol/deep-research", drHandler.HandleDeepResearch)
 
 	// Portfolio routes
 	repo := portfolio.NewRepository(pool)

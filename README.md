@@ -8,6 +8,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
 - Live market news feed (Economic Times, Moneycontrol, Business Standard) with per-stock news pipeline
 - Portfolio management: stocks, FDs, mutual funds, gold, and other assets
 - Mutual fund deep research: holdings breakdown, NAV history, allocation stats
+- Per-stock deep research: annual reports (NSE with BSE fallback)
 
 ## Architecture
 
@@ -17,10 +18,11 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
+  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback)
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
   - `internal/portfolio` - portfolio holdings CRUD
   - `internal/portfolio/db` - sqlc-generated type-safe query code (do not edit)
-- **Next.js frontend** (`frontend/`) - indicators dashboard and portfolio management UI on `:3000`, with a live market news feed (tabbed: general market news and per-stock news)
+- **Next.js frontend** (`frontend/`) - indicators dashboard and portfolio management UI on `:3000`, with a live market news feed (tabbed: general market news and per-stock news) and stock deep research at `/stock/[symbol]`
 - **PostgreSQL** - stores portfolio holdings
 
 ## Running
@@ -82,6 +84,8 @@ The generated files in `internal/portfolio/db/` are committed and should not be 
 
 `GET /api/mutual-fund/{schemeCode}` — full fund details including stock holdings and allocation
 
+Holdings and stats are sourced from Yahoo Finance and may be absent for funds not listed there.
+
 ### Portfolio
 
 | Method | Path | Description |
@@ -105,6 +109,26 @@ Example payload:
   "buy_date": "2024-01-15T00:00:00Z",
   "notes": "Long term hold",
   "metadata": {}
+}
+```
+
+### Deep Research
+
+`GET /api/stock/:symbol/deep-research` — annual reports for a stock (NSE symbol, e.g. `RELIANCE`). Falls back to BSE if NSE is unavailable:
+
+```json
+{
+  "symbol": "RELIANCE",
+  "annualReports": [
+    {
+      "seqNumber": 1,
+      "issuer": "Reliance Industries Limited",
+      "year": "2023-2024",
+      "subject": "Annual Report 2023-24",
+      "pdfLink": "https://archives.nseindia.com/..."
+    }
+  ],
+  "annualReportsSource": "NSE"
 }
 ```
 

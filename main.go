@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"marketview/internal/api"
+	"marketview/internal/deepresearch"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
 	"marketview/internal/news"
@@ -26,9 +27,15 @@ func main() {
 	mfService := mutualfund.NewService()
 	mfHandler := mutualfund.NewHandler(mfService)
 
+	drService := deepresearch.NewService(
+		deepresearch.NewNSEProvider(nseClient),
+		deepresearch.NewBSEProvider(),
+	)
+	drHandler := deepresearch.NewHandler(drService)
+
 	newsStore := news.NewStore()
 
-	srv, err := api.New(ctx, allIndicators, mfHandler, newsStore)
+	srv, err := api.New(ctx, allIndicators, mfHandler, newsStore, drHandler)
 	if err != nil {
 		log.Fatalf("failed to initialise server: %v", err)
 	}
