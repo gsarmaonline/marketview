@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -71,6 +72,51 @@ func New(ctx context.Context, pool *pgxpool.Pool, inds []indicators.Indicator, m
 
 		r.Any("/api/portfolio/holdings", gin.WrapH(portfolioMux))
 		r.Any("/api/portfolio/holdings/*path", gin.WrapH(portfolioMux))
+
+		// Portfolio analysis: fetch MF holdings, enrich with Yahoo Finance, compute overlap.
+		r.GET("/api/portfolio/analyse", func(c *gin.Context) {
+			holdings, err := repo.List(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			var inputs []mutualfund.FundInput
+			for _, h := range holdings {
+				if h.AssetType != portfolio.AssetTypeMutualFund {
+					continue
+				}
+				input := mutualfund.FundInput{Name: h.Name}
+				// Extract schemeCode from metadata if stored.
+				if len(h.Metadata) > 0 {
+					var meta map[string]interface{}
+					if json.Unmarshal(h.Metadata, &meta) == nil {
+						if code, ok := meta["schemeCode"]; ok {
+							if f, ok := code.(float64); ok {
+								input.SchemeCode = int(f)
+							}
+						}
+					}
+				}
+				inputs = append(inputs, input)
+			}
+
+			if len(inputs) == 0 {
+				c.JSON(http.StatusOK, mutualfund.PortfolioAnalysis{
+					Funds:           []mutualfund.PortfolioFundAnalysis{},
+					Overlaps:        []mutualfund.StockOverlap{},
+					Recommendations: []string{"No mutual fund holdings found in your portfolio."},
+				})
+				return
+			}
+
+			analysis, err := mfHandler.AnalysePortfolio(inputs)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, analysis)
+		})
 	}
 
 	return s, nil

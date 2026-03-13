@@ -32,6 +32,11 @@ func (h *Handler) HandleSearch(c *gin.Context) {
 	c.JSON(http.StatusOK, results)
 }
 
+// AnalysePortfolio delegates to the service layer.
+func (h *Handler) AnalysePortfolio(inputs []FundInput) (*PortfolioAnalysis, error) {
+	return h.service.AnalysePortfolio(inputs)
+}
+
 // HandleDetails handles GET /api/mutual-fund/:schemeCode
 func (h *Handler) HandleDetails(c *gin.Context) {
 	schemeCode, err := strconv.Atoi(c.Param("schemeCode"))
