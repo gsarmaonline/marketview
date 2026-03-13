@@ -38,6 +38,22 @@ go run main.go              # backend on :8080
 cd frontend && npm run dev  # frontend on :3000
 ```
 
+## Screenshots
+
+Capture screenshots of all frontend pages at desktop, tablet, and mobile viewports:
+
+```bash
+make screenshot   # uses the running docker-compose stack (auto-starts if needed)
+```
+
+Environment variables:
+- `BASE_URL` — override server URL (default: `http://localhost:3001`)
+- `START_SERVER=docker` — start the docker-compose stack first
+- `START_SERVER=dev` — spawn the Next.js dev server instead
+- `STOP_SERVER=1` — stop docker-compose when done
+
+Screenshots are saved to `frontend/screenshots/`.
+
 ## Development
 
 ### Regenerating database queries

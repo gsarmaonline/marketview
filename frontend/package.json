@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "screenshot": "node scripts/screenshot.js"
   },
   "dependencies": {
     "next": "15.2.2",
@@ -16,6 +17,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "playwright": "^1.50.0",
     "typescript": "^5"
   }
 }
