@@ -19,6 +19,7 @@ export default function RootLayout({
           <div className="nav-links">
             <a href="/">Indicators</a>
             <a href="/portfolio">Portfolio</a>
+            <a href="/backtest">Backtest</a>
           </div>
         </nav>
         <main className="container">{children}</main>

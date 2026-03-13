@@ -9,6 +9,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
 - Portfolio management: stocks, FDs, mutual funds, gold, and other assets
 - Mutual fund deep research: holdings breakdown, NAV history, allocation stats
 - Per-stock deep research: annual reports (NSE with BSE fallback), financial statements (P&L, Balance Sheet, Cash Flow, Highlights) fetched live from Yahoo Finance, supply chain extraction from Related Party Transactions via PDF parsing, and shareholding pattern (promoter %, FII, DII, mutual funds, public) from NSE quarterly filings
+- Backtesting: simulate trading strategies on historical NSE price data (Yahoo Finance), with metrics including total return, CAGR, max drawdown, Sharpe ratio, and an equity curve
 
 ## Architecture
 
@@ -20,6 +21,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/nse` - NSE India HTTP client
   - `internal/stock` - stock price fetching via Yahoo Finance (used by the portfolio to auto-populate current value)
   - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), financials fetched live from Yahoo Finance, supply chain extraction from PDFs, and shareholding pattern from NSE; all cached in Postgres via sqlc-generated queries
+  - `internal/backtest` - backtesting engine: historical price fetching, strategy interface, trade simulation, and performance metrics. Strategies live alongside the engine (`buyhold.go`); add new ones by implementing `Strategy` and registering in `handler.go`
 - **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for supply chain (Related Party Transactions) extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
   - `internal/portfolio` - portfolio holdings CRUD
@@ -202,6 +204,51 @@ Used by the portfolio UI to auto-populate the current value field when adding or
 The response also includes `financials` (P&L, Balance Sheet, Cash Flow, and per-share Highlights extracted from the PDF) and `_claudeFilled` (list of `"section.field"` keys that Claude populated when regex was insufficient). Supply chain results are cached in `supply_chain_store` and shareholding pattern in `shareholding_pattern_store` (30-day TTL), both via sqlc-generated queries keyed by symbol.
 
 Uses `python/parse_pdf.py` (requires `pip install -r python/requirements.txt`; for scanned PDFs also needs `tesseract` and `poppler` system packages). Set `ANTHROPIC_API_KEY` to enable Claude gap-fill when fewer than 8 fields are extracted by regex.
+
+### Backtesting
+
+`POST /api/backtest` — simulate a trading strategy on historical daily price data for an NSE stock.
+
+Request:
+
+```json
+{
+  "symbol": "RELIANCE",
+  "from": "2020-01-01",
+  "to": "2025-01-01",
+  "capital": 100000,
+  "strategy": { "name": "buy_and_hold" }
+}
+```
+
+Response:
+
+```json
+{
+  "strategy": "buy_and_hold",
+  "symbol": "RELIANCE.NS",
+  "from": "2020-01-02",
+  "to": "2024-12-31",
+  "capital": 100000,
+  "final_value": 142300,
+  "trades": [
+    { "entry_date": "2020-01-02", "entry_price": 1450.0, "exit_date": "2024-12-31", "exit_price": 2065.0, "shares": 68, "pnl": 41820.0, "return_pct": 42.4 }
+  ],
+  "equity_curve": [{ "date": "2020-01-02", "value": 100000 }, "..."],
+  "metrics": {
+    "total_return_pct": 42.4,
+    "cagr_pct": 7.3,
+    "max_drawdown_pct": 18.2,
+    "sharpe_ratio": 1.1,
+    "win_rate_pct": 100,
+    "total_trades": 1
+  }
+}
+```
+
+Available strategies: `buy_and_hold`. New strategies implement the `Strategy` interface in `internal/backtest/` and are registered in `handler.go`.
+
+Historical prices are fetched from Yahoo Finance (`.NS` suffix appended automatically for NSE symbols). No API key required.
 
 ## Indicators
 
