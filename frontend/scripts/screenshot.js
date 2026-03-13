@@ -35,7 +35,8 @@ const config = {
   pages: [
     { path: '/', name: 'dashboard', waitFor: '.indicator-card, main' },
     { path: '/portfolio', name: 'portfolio', waitFor: 'main' },
-    { path: '/stock/RELIANCE', name: 'stock-reliance', waitFor: 'main' },
+    { path: '/stock/RELIANCE', name: 'stock-reliance', waitFor: 'main', waitUntil: 'load' },
+    { path: '/backtest', name: 'backtest', waitFor: 'main' },
   ],
 
   viewports: [
@@ -197,7 +198,7 @@ async function captureAll() {
 
         const page = await context.newPage();
         try {
-          await page.goto(url, { waitUntil: 'networkidle', timeout: pageTimeout });
+          await page.goto(url, { waitUntil: pg.waitUntil || 'networkidle', timeout: pageTimeout });
 
           // Wait for a representative element to be visible
           if (pg.waitFor) {
