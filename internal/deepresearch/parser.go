@@ -31,7 +31,7 @@ type parseResponse struct {
 }
 
 // ParseAnnualReport calls the Python parser service to extract supply chain
-// entities from the Related Party Transactions section of the given PDF.
+// entities from the given PDF.
 func ParseAnnualReport(pdfURL string) ([]SupplyChainEntity, error) {
 	body, err := json.Marshal(parseRequest{URL: pdfURL})
 	if err != nil {

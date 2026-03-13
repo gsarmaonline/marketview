@@ -5,13 +5,18 @@ POST /parse
   Body:  {"url": "<pdf_url_or_local_path>"}
   Returns: {"companies": [...]}  or  {"error": "..."}
 
+Environment variables:
+  PORT  — listening port (default 5001)
+
 Runs on 0.0.0.0:5001 by default; override with PORT env var.
 """
 
 import os
-import json
 from flask import Flask, request, jsonify
-from parse_pdf import download_pdf, extract_text, find_rpt_section, extract_companies
+from parse_pdf import (
+    download_pdf, extract_text, find_rpt_section,
+    extract_companies,
+)
 
 app = Flask(__name__)
 

@@ -8,7 +8,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
 - Live market news feed (Economic Times, Moneycontrol, Business Standard) with per-stock news pipeline
 - Portfolio management: stocks, FDs, mutual funds, gold, and other assets
 - Mutual fund deep research: holdings breakdown, NAV history, allocation stats
-- Per-stock deep research: annual reports (NSE with BSE fallback) with supply chain extraction from Related Party Transactions
+- Per-stock deep research: annual reports (NSE with BSE fallback), financial statements (P&L, Balance Sheet, Cash Flow, Highlights) fetched live from Yahoo Finance, and supply chain extraction from Related Party Transactions via PDF parsing
 
 ## Architecture
 
@@ -19,8 +19,8 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
   - `internal/stock` - stock price fetching via Yahoo Finance (used by the portfolio to auto-populate current value)
-  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), PDF parsing, supply chain extraction
-- **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for supply chain extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
+  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), financials fetched live from Yahoo Finance, supply chain extraction from PDFs cached in Postgres
+- **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for supply chain (Related Party Transactions) extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
   - `internal/portfolio` - portfolio holdings CRUD
   - `internal/portfolio/db` - sqlc-generated type-safe query code (do not edit)
@@ -45,7 +45,8 @@ go run main.go              # backend on :8080
 cd frontend && npm run dev  # frontend on :3000
 ```
 
-The backend reads `PARSER_URL` (default `http://localhost:5001`) to locate the PDF parser service.
+Key environment variables (see `.env.example` for the full list):
+- `PARSER_URL` (default `http://localhost:5001`) - location of the PDF parser service
 
 ## Screenshots
 
@@ -182,7 +183,9 @@ Used by the portfolio UI to auto-populate the current value field when adding or
 }
 ```
 
-`supplyChain` is populated by parsing the Related Party Transactions section of the most recent annual report PDF. Uses `python/parse_pdf.py` (requires `pip install -r python/requirements.txt`; for scanned PDFs also needs `tesseract` and `poppler` system packages).
+The response also includes `financials` (P&L, Balance Sheet, Cash Flow, and per-share Highlights extracted from the PDF) and `_claudeFilled` (list of `"section.field"` keys that Claude populated when regex was insufficient). Parsed results are cached in the `supply_chain_store` Postgres table keyed by `(symbol, report_year)`.
+
+Uses `python/parse_pdf.py` (requires `pip install -r python/requirements.txt`; for scanned PDFs also needs `tesseract` and `poppler` system packages). Set `ANTHROPIC_API_KEY` to enable Claude gap-fill when fewer than 8 fields are extracted by regex.
 
 ## Indicators
 

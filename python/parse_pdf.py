@@ -3,7 +3,7 @@
 
 Usage:  python3 parse_pdf.py <pdf_url_or_path>
 Output: JSON to stdout:
-    {"companies": [{"name": "...", "relationship": "...", "amount": "..."}, ...]}
+    {"companies": [...]}
     {"error": "..."}   on failure
 
 Dependencies:

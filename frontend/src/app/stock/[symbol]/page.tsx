@@ -21,10 +21,69 @@ interface AnnualReport {
   pdfLink: string;
 }
 
+interface SupplyChainEntity {
+  name: string;
+  relationship: string;
+  amount?: string;
+}
+
+interface ProfitAndLoss {
+  revenueFromOperations?: string;
+  otherIncome?: string;
+  totalIncome?: string;
+  materialCost?: string;
+  employeeBenefits?: string;
+  financeCosts?: string;
+  depreciation?: string;
+  otherExpenses?: string;
+  totalExpenses?: string;
+  profitBeforeTax?: string;
+  taxExpense?: string;
+  profitAfterTax?: string;
+}
+
+interface BalanceSheet {
+  totalAssets?: string;
+  fixedAssets?: string;
+  currentAssets?: string;
+  cash?: string;
+  inventory?: string;
+  receivables?: string;
+  totalEquity?: string;
+  longTermDebt?: string;
+  currentLiabilities?: string;
+}
+
+interface CashFlow {
+  fromOperations?: string;
+  fromInvesting?: string;
+  fromFinancing?: string;
+  netChange?: string;
+}
+
+interface FinancialHighlights {
+  eps?: string;
+  bookValuePerShare?: string;
+  dividendPerShare?: string;
+  roe?: string;
+  roce?: string;
+  debtToEquity?: string;
+}
+
+interface Financials {
+  pnl: ProfitAndLoss;
+  balanceSheet: BalanceSheet;
+  cashFlow: CashFlow;
+  highlights: FinancialHighlights;
+}
+
 interface DeepResearch {
   symbol: string;
   annualReports: AnnualReport[];
   annualReportsSource: string;
+  supplyChain?: SupplyChainEntity[];
+  financials?: Financials;
+  parsedReportYear?: string;
 }
 
 interface NewsItem {
@@ -36,7 +95,7 @@ interface NewsItem {
   symbol?: string;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(iso: string): string {
   if (!iso) return "";
@@ -53,6 +112,55 @@ const sourceColors: Record<string, string> = {
   Moneycontrol: "#0077cc",
   "Business Standard": "#c0392b",
 };
+
+function hasData(obj: Record<string, string | undefined> | undefined): boolean {
+  if (!obj) return false;
+  return Object.values(obj).some((v) => v && v.trim() !== "");
+}
+
+function fmtNum(raw: string | undefined): string {
+  if (!raw) return "—";
+  const n = parseFloat(raw.replace(/,/g, ""));
+  if (isNaN(n)) return raw;
+  if (Math.abs(n) >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)} Cr`;
+  if (Math.abs(n) >= 1_00_000) return `₹${(n / 1_00_000).toFixed(2)} L`;
+  return `₹${n.toLocaleString("en-IN")}`;
+}
+
+const RELATIONSHIP_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  subsidiary:              { bg: "rgba(99,102,241,0.12)",  border: "rgba(99,102,241,0.3)",  text: "#818cf8" },
+  wholly_owned_subsidiary: { bg: "rgba(99,102,241,0.18)",  border: "rgba(99,102,241,0.4)",  text: "#a5b4fc" },
+  holding:                 { bg: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.3)",  text: "#fbbf24" },
+  associate:               { bg: "rgba(34,211,238,0.12)",  border: "rgba(34,211,238,0.3)",  text: "#67e8f9" },
+  joint_venture:           { bg: "rgba(16,185,129,0.12)",  border: "rgba(16,185,129,0.3)",  text: "#6ee7b7" },
+  key_management:          { bg: "rgba(239,68,68,0.10)",   border: "rgba(239,68,68,0.25)",  text: "#fca5a5" },
+  promoter:                { bg: "rgba(236,72,153,0.10)",  border: "rgba(236,72,153,0.25)", text: "#f9a8d4" },
+  supplier:                { bg: "rgba(251,146,60,0.12)",  border: "rgba(251,146,60,0.3)",  text: "#fdba74" },
+  customer:                { bg: "rgba(52,211,153,0.12)",  border: "rgba(52,211,153,0.3)",  text: "#6ee7b7" },
+  related_party:           { bg: "rgba(148,163,184,0.10)", border: "rgba(148,163,184,0.2)", text: "#94a3b8" },
+};
+
+function RelationshipBadge({ rel }: { rel: string }) {
+  const c = RELATIONSHIP_COLORS[rel] ?? RELATIONSHIP_COLORS.related_party;
+  const label = rel.replace(/_/g, " ");
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        color: c.text,
+        borderRadius: 20,
+        padding: "2px 8px",
+        whiteSpace: "nowrap",
+        textTransform: "capitalize",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
@@ -111,16 +219,18 @@ function MetricCard({
   label,
   value,
   sub,
+  highlight,
 }: {
   label: string;
   value: string;
   sub?: string;
+  highlight?: boolean;
 }) {
   return (
     <div
       style={{
-        background: "#1a1d27",
-        border: "1px solid #2a2f45",
+        background: highlight ? "rgba(99,102,241,0.08)" : "#1a1d27",
+        border: highlight ? "1px solid rgba(99,102,241,0.3)" : "1px solid #2a2f45",
         borderRadius: 10,
         padding: "14px 18px",
       }}
@@ -141,7 +251,7 @@ function MetricCard({
         style={{
           fontSize: 18,
           fontWeight: 700,
-          color: value === "—" ? "#475569" : "#e2e8f0",
+          color: highlight ? "#818cf8" : (value === "—" ? "#475569" : "#e2e8f0"),
         }}
       >
         {value}
@@ -149,6 +259,28 @@ function MetricCard({
       {sub && (
         <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>{sub}</div>
       )}
+    </div>
+  );
+}
+
+function RatioChip({ label, value }: { label: string; value: string | undefined }) {
+  if (!value) return null;
+  return (
+    <div
+      style={{
+        background: "#1a1d27",
+        border: "1px solid #2a2f45",
+        borderRadius: 10,
+        padding: "12px 16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+      }}
+    >
+      <div style={{ color: "#64748b", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        {label}
+      </div>
+      <div style={{ color: "#e2e8f0", fontSize: 16, fontWeight: 700 }}>{value}</div>
     </div>
   );
 }
@@ -365,7 +497,7 @@ export default function StockPage() {
     }
   }, [symbol]);
 
-  // Deep research (annual reports)
+  // Deep research (annual reports + financials + supply chain)
   const fetchResearch = useCallback(async () => {
     try {
       const res = await fetch(`/api/stock/${symbol}/deep-research`);
@@ -426,6 +558,11 @@ export default function StockPage() {
     transition: "all 0.15s",
     whiteSpace: "nowrap" as const,
   });
+
+  const pnl = researchData?.financials?.pnl;
+  const bs = researchData?.financials?.balanceSheet;
+  const cf = researchData?.financials?.cashFlow;
+  const hl = researchData?.financials?.highlights;
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
@@ -542,19 +679,15 @@ export default function StockPage() {
           marginBottom: 32,
         }}
       >
-        <MetricCard
-          label="Market Cap"
-          value="—"
-          sub="Not available"
-        />
-        <MetricCard label="P/E Ratio" value="—" />
-        <MetricCard label="Book Value" value="—" />
-        <MetricCard label="Dividend Yield" value="—" />
-        <MetricCard label="ROCE" value="—" />
-        <MetricCard label="ROE" value="—" />
-        <MetricCard label="Face Value" value="—" />
-        <MetricCard label="52W High" value="—" />
-        <MetricCard label="52W Low" value="—" />
+        <MetricCard label="EPS" value={hl?.eps ?? "—"} />
+        <MetricCard label="Book Value" value={hl?.bookValuePerShare ?? "—"} />
+        <MetricCard label="Dividend / Share" value={hl?.dividendPerShare ?? "—"} />
+        <MetricCard label="ROE" value={hl?.roe ? `${hl.roe}%` : "—"} />
+        <MetricCard label="ROCE" value={hl?.roce ? `${hl.roce}%` : "—"} />
+        <MetricCard label="Debt / Equity" value={hl?.debtToEquity ?? "—"} />
+        <MetricCard label="Revenue" value={fmtNum(pnl?.revenueFromOperations)} highlight />
+        <MetricCard label="Net Profit" value={fmtNum(pnl?.profitAfterTax)} highlight />
+        <MetricCard label="Total Assets" value={fmtNum(bs?.totalAssets)} />
       </div>
 
       {/* ── Tabs ── */}
@@ -579,11 +712,48 @@ export default function StockPage() {
 
       {activeTab === "overview" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <SectionCard title="About">
-            <div style={{ padding: "20px", color: "#475569", fontSize: 13 }}>
-              Company details not yet available. Financial data will be added in a future update.
-            </div>
-          </SectionCard>
+          {/* Supply Chain / Related Party Transactions */}
+          {researchData?.supplyChain && researchData.supplyChain.length > 0 && (
+            <SectionCard
+              title={`Related Party Transactions${researchData.parsedReportYear ? ` · ${researchData.parsedReportYear}` : ""}`}
+            >
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #2a2f45" }}>
+                    <th style={{ textAlign: "left", padding: "12px 16px", color: "#64748b", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Company
+                    </th>
+                    <th style={{ textAlign: "left", padding: "12px 16px", color: "#64748b", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Relationship
+                    </th>
+                    <th style={{ textAlign: "right", padding: "12px 16px", color: "#64748b", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {researchData.supplyChain.map((entity, idx) => (
+                    <tr
+                      key={idx}
+                      style={{
+                        borderBottom: idx < researchData.supplyChain!.length - 1 ? "1px solid #1e2235" : "none",
+                      }}
+                    >
+                      <td style={{ padding: "12px 16px", color: "#e2e8f0", fontSize: 13 }}>
+                        {entity.name}
+                      </td>
+                      <td style={{ padding: "12px 16px" }}>
+                        <RelationshipBadge rel={entity.relationship} />
+                      </td>
+                      <td style={{ padding: "12px 16px", color: "#94a3b8", fontSize: 13, textAlign: "right" }}>
+                        {entity.amount ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </SectionCard>
+          )}
 
           <SectionCard title="Peer Comparison">
             <EmptyTable
@@ -603,30 +773,88 @@ export default function StockPage() {
 
       {activeTab === "profit_loss" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <SectionCard title="Profit & Loss">
-            <EmptyTable
-              columns={["", "Mar 2021", "Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025"]}
-            />
-          </SectionCard>
-          <SectionCard title="Cash Flows">
-            <EmptyTable
-              columns={["", "Mar 2021", "Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025"]}
-            />
-          </SectionCard>
-          <SectionCard title="Ratios">
-            <EmptyTable
-              columns={["", "Mar 2021", "Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025"]}
-            />
-          </SectionCard>
+          {pnl && hasData(pnl as Record<string, string | undefined>) ? (
+            <>
+              <SectionCard title="Profit & Loss">
+                <div style={{ padding: 20, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+                  <MetricCard label="Revenue from Ops" value={fmtNum(pnl.revenueFromOperations)} highlight />
+                  <MetricCard label="Other Income" value={fmtNum(pnl.otherIncome)} />
+                  <MetricCard label="Total Income" value={fmtNum(pnl.totalIncome)} />
+                  <MetricCard label="Material Cost" value={fmtNum(pnl.materialCost)} />
+                  <MetricCard label="Employee Benefits" value={fmtNum(pnl.employeeBenefits)} />
+                  <MetricCard label="Finance Costs" value={fmtNum(pnl.financeCosts)} />
+                  <MetricCard label="Depreciation" value={fmtNum(pnl.depreciation)} />
+                  <MetricCard label="Other Expenses" value={fmtNum(pnl.otherExpenses)} />
+                  <MetricCard label="Total Expenses" value={fmtNum(pnl.totalExpenses)} />
+                  <MetricCard label="Profit Before Tax" value={fmtNum(pnl.profitBeforeTax)} />
+                  <MetricCard label="Tax Expense" value={fmtNum(pnl.taxExpense)} />
+                  <MetricCard label="Profit After Tax" value={fmtNum(pnl.profitAfterTax)} highlight />
+                </div>
+              </SectionCard>
+              {cf && hasData(cf as Record<string, string | undefined>) && (
+                <SectionCard title="Cash Flows">
+                  <div style={{ padding: 20, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+                    <MetricCard label="From Operations" value={fmtNum(cf.fromOperations)} highlight />
+                    <MetricCard label="From Investing" value={fmtNum(cf.fromInvesting)} />
+                    <MetricCard label="From Financing" value={fmtNum(cf.fromFinancing)} />
+                    <MetricCard label="Net Change" value={fmtNum(cf.netChange)} />
+                  </div>
+                </SectionCard>
+              )}
+              {hl && hasData(hl as Record<string, string | undefined>) && (
+                <SectionCard title="Key Ratios">
+                  <div style={{ padding: 20, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+                    <RatioChip label="EPS" value={hl.eps} />
+                    <RatioChip label="Book Value / Share" value={hl.bookValuePerShare} />
+                    <RatioChip label="Dividend / Share" value={hl.dividendPerShare} />
+                    <RatioChip label="ROE" value={hl.roe ? `${hl.roe}%` : undefined} />
+                    <RatioChip label="ROCE" value={hl.roce ? `${hl.roce}%` : undefined} />
+                    <RatioChip label="Debt / Equity" value={hl.debtToEquity} />
+                  </div>
+                </SectionCard>
+              )}
+            </>
+          ) : (
+            <>
+              <SectionCard title="Profit & Loss">
+                {researchLoading ? (
+                  <div style={{ padding: 20, color: "#64748b", fontSize: 13 }}>Loading…</div>
+                ) : (
+                  <EmptyTable columns={["", "Mar 2021", "Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025"]} />
+                )}
+              </SectionCard>
+              <SectionCard title="Cash Flows">
+                <EmptyTable columns={["", "Mar 2021", "Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025"]} />
+              </SectionCard>
+            </>
+          )}
         </div>
       )}
 
       {activeTab === "balance_sheet" && (
-        <SectionCard title="Balance Sheet">
-          <EmptyTable
-            columns={["", "Mar 2021", "Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025"]}
-          />
-        </SectionCard>
+        bs && hasData(bs as Record<string, string | undefined>) ? (
+          <SectionCard title="Balance Sheet">
+            <div style={{ padding: 20, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+              <MetricCard label="Total Assets" value={fmtNum(bs.totalAssets)} highlight />
+              <MetricCard label="Fixed Assets" value={fmtNum(bs.fixedAssets)} />
+              <MetricCard label="Current Assets" value={fmtNum(bs.currentAssets)} />
+              <MetricCard label="Cash" value={fmtNum(bs.cash)} />
+              <MetricCard label="Inventory" value={fmtNum(bs.inventory)} />
+              <MetricCard label="Receivables" value={fmtNum(bs.receivables)} />
+              <MetricCard label="Total Equity" value={fmtNum(bs.totalEquity)} highlight />
+              <MetricCard label="Long-Term Debt" value={fmtNum(bs.longTermDebt)} />
+              <MetricCard label="Current Liabilities" value={fmtNum(bs.currentLiabilities)} />
+            </div>
+          </SectionCard>
+        ) : (
+          <SectionCard title="Balance Sheet">
+            {researchLoading ? (
+              <div style={{ padding: 20, color: "#64748b", fontSize: 13 }}>Loading…</div>
+            ) : (
+              <EmptyTable columns={["", "Mar 2021", "Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025"]} />
+            )}
+          </SectionCard>
+        )
       )}
 
       {activeTab === "documents" && (

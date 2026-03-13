@@ -20,6 +20,23 @@ func (m *mockProvider) FetchAnnualReports(symbol string) ([]AnnualReport, error)
 	return m.reports, m.err
 }
 
+// mockStore is a test double for StoreInterface.
+type mockStore struct {
+	entities []SupplyChainEntity
+	hit      bool
+	err      error
+	setCalls int
+}
+
+func (m *mockStore) Get(ctx context.Context, symbol, reportYear string) ([]SupplyChainEntity, bool, error) {
+	return m.entities, m.hit, m.err
+}
+
+func (m *mockStore) Set(ctx context.Context, symbol, reportYear string, entities []SupplyChainEntity) error {
+	m.setCalls++
+	return m.err
+}
+
 // ── Service.FetchAnnualReports ────────────────────────────────────────────────
 
 func TestService_FetchAnnualReports_FirstProviderSucceeds(t *testing.T) {
@@ -149,6 +166,7 @@ func TestService_Fetch_ReturnsDeepResearch(t *testing.T) {
 	}
 	p := &mockProvider{name: "NSE", reports: reports}
 	svc := NewService(nil, p)
+	svc.financialsFetcher = nil // disable Yahoo calls in unit tests
 
 	result, err := svc.Fetch(context.Background(), "hdfcbank")
 	if err != nil {
@@ -178,6 +196,7 @@ func TestService_Fetch_ErrorPropagated(t *testing.T) {
 func TestService_Fetch_SymbolNormalised(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
 	svc := NewService(nil, p)
+	svc.financialsFetcher = nil
 
 	result, err := svc.Fetch(context.Background(), "  tcs  ")
 	if err != nil {
@@ -185,6 +204,112 @@ func TestService_Fetch_SymbolNormalised(t *testing.T) {
 	}
 	if result.Symbol != "TCS" {
 		t.Errorf("expected normalised symbol TCS, got %q", result.Symbol)
+	}
+}
+
+func TestService_Fetch_YahooFinancialsPopulated(t *testing.T) {
+	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
+	svc := NewService(nil, p)
+	svc.financialsFetcher = func(symbol string) (*Financials, error) {
+		return &Financials{
+			PnL: ProfitAndLoss{RevenueFromOperations: "9740000000000", ProfitAfterTax: "679000000000"},
+		}, nil
+	}
+
+	result, err := svc.Fetch(context.Background(), "RELIANCE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Financials == nil {
+		t.Fatal("expected financials, got nil")
+	}
+	if result.Financials.PnL.RevenueFromOperations != "9740000000000" {
+		t.Errorf("unexpected revenue: %q", result.Financials.PnL.RevenueFromOperations)
+	}
+}
+
+func TestService_Fetch_YahooFinancialsErrorIsNonFatal(t *testing.T) {
+	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
+	svc := NewService(nil, p)
+	svc.financialsFetcher = func(symbol string) (*Financials, error) {
+		return nil, errors.New("yahoo unavailable")
+	}
+
+	result, err := svc.Fetch(context.Background(), "RELIANCE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Financials != nil {
+		t.Errorf("expected nil financials on Yahoo error, got %+v", result.Financials)
+	}
+}
+
+func TestService_Fetch_StoreHit_ReturnsSupplyChain(t *testing.T) {
+	entities := []SupplyChainEntity{
+		{Name: "Acme Corp", Relationship: "subsidiary", Amount: "100 Cr"},
+	}
+	store := &mockStore{entities: entities, hit: true}
+	reports := []AnnualReport{
+		{SeqNumber: 1, Year: "2024", PDFLink: "http://example.com/2024.pdf"},
+	}
+	p := &mockProvider{name: "NSE", reports: reports}
+	svc := NewService(store, p)
+	svc.financialsFetcher = nil
+
+	result, err := svc.Fetch(context.Background(), "RELIANCE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.SupplyChain) != 1 || result.SupplyChain[0].Name != "Acme Corp" {
+		t.Errorf("unexpected supply chain: %+v", result.SupplyChain)
+	}
+	if result.ParsedReportYear != "2024" {
+		t.Errorf("expected parsedReportYear 2024, got %q", result.ParsedReportYear)
+	}
+}
+
+func TestService_Fetch_StoreMiss_SkipsParserWhenNoPDFLink(t *testing.T) {
+	store := &mockStore{hit: false}
+	reports := []AnnualReport{
+		{SeqNumber: 1, Year: "2024", PDFLink: ""},
+	}
+	p := &mockProvider{name: "NSE", reports: reports}
+	svc := NewService(store, p)
+	svc.financialsFetcher = nil
+
+	result, err := svc.Fetch(context.Background(), "TCS")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.setCalls != 0 {
+		t.Errorf("expected 0 store.Set calls, got %d", store.setCalls)
+	}
+	if len(result.SupplyChain) != 0 {
+		t.Errorf("expected empty supply chain, got %+v", result.SupplyChain)
+	}
+}
+
+func TestService_Fetch_StoreHit_SkipsParserSetCall(t *testing.T) {
+	store := &mockStore{
+		entities: []SupplyChainEntity{{Name: "Test Co", Relationship: "subsidiary"}},
+		hit:      true,
+	}
+	reports := []AnnualReport{
+		{SeqNumber: 1, Year: "2024", PDFLink: "http://example.com/2024.pdf"},
+	}
+	p := &mockProvider{name: "NSE", reports: reports}
+	svc := NewService(store, p)
+	svc.financialsFetcher = nil
+
+	result, err := svc.Fetch(context.Background(), "INFY")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.setCalls != 0 {
+		t.Errorf("store.Set should not be called on cache hit, got %d calls", store.setCalls)
+	}
+	if len(result.SupplyChain) != 1 {
+		t.Errorf("expected 1 supply chain entity, got %d", len(result.SupplyChain))
 	}
 }
 
