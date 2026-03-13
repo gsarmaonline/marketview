@@ -8,7 +8,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
 - Live market news feed (Economic Times, Moneycontrol, Business Standard) with per-stock news pipeline
 - Portfolio management: stocks, FDs, mutual funds, gold, and other assets
 - Mutual fund deep research: holdings breakdown, NAV history, allocation stats
-- Per-stock deep research: annual reports (NSE with BSE fallback)
+- Per-stock deep research: annual reports (NSE with BSE fallback) with supply chain extraction from Related Party Transactions
 
 ## Architecture
 
@@ -18,7 +18,8 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
-  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback)
+  - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), PDF parsing, supply chain extraction
+- **Python** (`python/`) - PDF text extraction and Related Party Transactions parsing (`parse_pdf.py`); uses `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
   - `internal/portfolio` - portfolio holdings CRUD
   - `internal/portfolio/db` - sqlc-generated type-safe query code (do not edit)
@@ -128,9 +129,23 @@ Example payload:
       "pdfLink": "https://archives.nseindia.com/..."
     }
   ],
-  "annualReportsSource": "NSE"
+  "annualReportsSource": "NSE",
+  "parsedReportYear": "2023-2024",
+  "supplyChain": [
+    {
+      "name": "Reliance Retail Ventures Limited",
+      "relationship": "subsidiary"
+    },
+    {
+      "name": "Jio Platforms Limited",
+      "relationship": "subsidiary",
+      "amount": "1234.56 Cr"
+    }
+  ]
 }
 ```
+
+`supplyChain` is populated by parsing the Related Party Transactions section of the most recent annual report PDF. Uses `python/parse_pdf.py` (requires `pip install -r python/requirements.txt`; for scanned PDFs also needs `tesseract` and `poppler` system packages).
 
 ## Indicators
 

@@ -32,7 +32,8 @@ func (s *Service) FetchAnnualReports(symbol string) ([]AnnualReport, string, err
 	return nil, "", fmt.Errorf("all providers failed for symbol %s", symbol)
 }
 
-// Fetch returns the full deep research data for a symbol.
+// Fetch returns the full deep research data for a symbol, including supply
+// chain entities parsed from the most recent annual report PDF.
 func (s *Service) Fetch(symbol string) (*DeepResearch, error) {
 	symbol = strings.ToUpper(strings.TrimSpace(symbol))
 
@@ -41,9 +42,26 @@ func (s *Service) Fetch(symbol string) (*DeepResearch, error) {
 		return nil, err
 	}
 
-	return &DeepResearch{
+	dr := &DeepResearch{
 		Symbol:              symbol,
 		AnnualReports:       reports,
 		AnnualReportsSource: source,
-	}, nil
+	}
+
+	// Parse the most recent report that has a PDF link.
+	for _, r := range reports {
+		if r.PDFLink == "" {
+			continue
+		}
+		entities, parseErr := ParseAnnualReport(r.PDFLink)
+		if parseErr != nil {
+			log.Printf("supply chain parse failed for %s (%s): %v", symbol, r.Year, parseErr)
+			break
+		}
+		dr.SupplyChain = entities
+		dr.ParsedReportYear = r.Year
+		break
+	}
+
+	return dr, nil
 }
