@@ -1,3 +1,11 @@
+CREATE TABLE IF NOT EXISTS supply_chain_store (
+    symbol      VARCHAR(50) NOT NULL,
+    report_year VARCHAR(20) NOT NULL,
+    entities    JSONB       NOT NULL,
+    parsed_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (symbol, report_year)
+);
+
 CREATE TABLE IF NOT EXISTS holdings (
     id            SERIAL PRIMARY KEY,
     asset_type    VARCHAR(50)   NOT NULL,

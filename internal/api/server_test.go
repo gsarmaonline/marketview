@@ -25,7 +25,15 @@ func randomSymbol() string {
 }
 
 func newTestServer(store *news.Store) *Server {
-	return New(nil, nil, store)
+	r := gin.New()
+	s := &Server{
+		router:    r,
+		newsStore: store,
+		shutdown:  func() {},
+	}
+	r.GET("/api/news/stock/:symbol", s.handleStockNews)
+	r.GET("/api/indicators", s.handleIndicators)
+	return s
 }
 
 func TestStockNews_EmptyStore(t *testing.T) {
