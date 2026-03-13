@@ -3,64 +3,13 @@ package deepresearch
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
-	"sync"
-	"time"
+
+	"marketview/internal/yahoo"
 )
 
 const yahooQuoteSummaryURL = "https://query1.finance.yahoo.com/v10/finance/quoteSummary/%s?modules=%s&crumb=%s"
-
-// yahooCrumb holds a cached crumb + cookie for Yahoo Finance API calls.
-var yahooCrumb struct {
-	sync.Mutex
-	value   string
-	cookies []*http.Cookie
-	fetchedAt time.Time
-}
-
-// getYahooCrumb returns a valid crumb and cookies, fetching fresh ones if needed.
-func getYahooCrumb() (string, []*http.Cookie, error) {
-	yahooCrumb.Lock()
-	defer yahooCrumb.Unlock()
-
-	if yahooCrumb.value != "" && time.Since(yahooCrumb.fetchedAt) < 30*time.Minute {
-		return yahooCrumb.value, yahooCrumb.cookies, nil
-	}
-
-	// Fetch cookies from consent endpoint
-	consentReq, _ := http.NewRequest(http.MethodGet, "https://fc.yahoo.com", nil)
-	consentReq.Header.Set("User-Agent", "Mozilla/5.0")
-	consentResp, err := http.DefaultClient.Do(consentReq)
-	if err != nil {
-		return "", nil, fmt.Errorf("yahoo crumb: consent request failed: %w", err)
-	}
-	consentResp.Body.Close()
-	cookies := consentResp.Cookies()
-
-	// Fetch crumb
-	crumbReq, _ := http.NewRequest(http.MethodGet, "https://query2.finance.yahoo.com/v1/test/getcrumb", nil)
-	crumbReq.Header.Set("User-Agent", "Mozilla/5.0")
-	for _, c := range cookies {
-		crumbReq.AddCookie(c)
-	}
-	crumbResp, err := http.DefaultClient.Do(crumbReq)
-	if err != nil {
-		return "", nil, fmt.Errorf("yahoo crumb: getcrumb request failed: %w", err)
-	}
-	defer crumbResp.Body.Close()
-	b, _ := io.ReadAll(crumbResp.Body)
-	crumb := string(b)
-	if crumb == "" {
-		return "", nil, fmt.Errorf("yahoo crumb: empty crumb returned")
-	}
-
-	yahooCrumb.value = crumb
-	yahooCrumb.cookies = cookies
-	yahooCrumb.fetchedAt = time.Now()
-	return crumb, cookies, nil
-}
 
 type yahooRawValue struct {
 	Raw float64 `json:"raw"`
@@ -142,7 +91,7 @@ func FetchYahooFinancials(symbol string) (*Financials, error) {
 }
 
 func fetchYahooFinancialsFor(yahooSymbol string) (*Financials, error) {
-	crumb, cookies, err := getYahooCrumb()
+	crumb, cookies, err := yahoo.GetCrumb()
 	if err != nil {
 		return nil, fmt.Errorf("yahoo: could not get crumb: %w", err)
 	}
