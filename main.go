@@ -27,7 +27,10 @@ func main() {
 	mfService := mutualfund.NewService()
 	mfHandler := mutualfund.NewHandler(mfService)
 
-	drService := deepresearch.NewService(nseClient)
+	drService := deepresearch.NewService(
+		deepresearch.NewNSEProvider(nseClient),
+		deepresearch.NewBSEProvider(),
+	)
 	drHandler := deepresearch.NewHandler(drService)
 
 	newsStore := news.NewStore()

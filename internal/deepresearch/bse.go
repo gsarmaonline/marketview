@@ -30,15 +30,27 @@ type bseReportItem struct {
 	PDFLink    string `json:"PDF_LINK"`
 }
 
-type bseClient struct {
+// BSEProvider fetches annual reports from BSE India.
+type BSEProvider struct {
 	http *http.Client
 }
 
-func newBSEClient() *bseClient {
-	return &bseClient{http: &http.Client{}}
+// NewBSEProvider creates a BSEProvider.
+func NewBSEProvider() *BSEProvider {
+	return &BSEProvider{http: &http.Client{}}
 }
 
-func (c *bseClient) get(rawURL string) ([]byte, error) {
+func (p *BSEProvider) Name() string { return "BSE" }
+
+func (p *BSEProvider) FetchAnnualReports(symbol string) ([]AnnualReport, error) {
+	scripCode, err := p.lookupScripCode(symbol)
+	if err != nil {
+		return nil, err
+	}
+	return p.fetchReports(scripCode)
+}
+
+func (p *BSEProvider) get(rawURL string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -48,7 +60,7 @@ func (c *bseClient) get(rawURL string) ([]byte, error) {
 	req.Header.Set("Referer", bseReferer)
 	req.Header.Set("Origin", "https://www.bseindia.com")
 
-	resp, err := c.http.Do(req)
+	resp, err := p.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +73,9 @@ func (c *bseClient) get(rawURL string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-// lookupScripCode searches BSE for the scrip code matching the given symbol/name.
-func (c *bseClient) lookupScripCode(symbol string) (string, error) {
+func (p *BSEProvider) lookupScripCode(symbol string) (string, error) {
 	searchURL := fmt.Sprintf(bseSearchURL, url.QueryEscape(symbol))
-	body, err := c.get(searchURL)
+	body, err := p.get(searchURL)
 	if err != nil {
 		return "", fmt.Errorf("BSE scrip code lookup: %w", err)
 	}
@@ -81,10 +92,9 @@ func (c *bseClient) lookupScripCode(symbol string) (string, error) {
 	return result.Table[0].ScripCode, nil
 }
 
-// fetchAnnualReports returns annual reports from BSE for a given scrip code.
-func (c *bseClient) fetchAnnualReports(scripCode string) ([]AnnualReport, error) {
+func (p *BSEProvider) fetchReports(scripCode string) ([]AnnualReport, error) {
 	reportURL := fmt.Sprintf(bseAnnualReportURL, scripCode)
-	body, err := c.get(reportURL)
+	body, err := p.get(reportURL)
 	if err != nil {
 		return nil, fmt.Errorf("BSE annual reports: %w", err)
 	}
