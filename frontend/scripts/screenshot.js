@@ -35,6 +35,7 @@ const config = {
   pages: [
     { path: '/', name: 'dashboard', waitFor: '.indicator-card, main' },
     { path: '/portfolio', name: 'portfolio', waitFor: 'main' },
+    { path: '/stock/RELIANCE', name: 'stock-reliance', waitFor: 'main' },
   ],
 
   viewports: [
