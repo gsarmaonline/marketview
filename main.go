@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 
 	"marketview/internal/api"
 	"marketview/internal/db"
@@ -49,5 +50,9 @@ func main() {
 	}
 	defer srv.Shutdown()
 
-	log.Fatal(srv.Run(":8080"))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Fatal(srv.Run(":" + port))
 }
