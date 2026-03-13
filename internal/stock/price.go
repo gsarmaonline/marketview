@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"marketview/internal/yahoo"
 )
 
 const yahooSummaryURL = "https://query1.finance.yahoo.com/v10/finance/quoteSummary"
@@ -35,7 +37,7 @@ type PriceResult struct {
 	ShortName string  `json:"short_name"`
 }
 
-// FetchPrice fetches the current market price for an NSE stock symbol.
+// FetchPrice fetches the current market price for an NSE stock symbol via Yahoo Finance.
 // It appends ".NS" if the symbol has no exchange suffix.
 func FetchPrice(symbol string) (*PriceResult, error) {
 	yahooSymbol := symbol
@@ -43,13 +45,21 @@ func FetchPrice(symbol string) (*PriceResult, error) {
 		yahooSymbol = symbol + ".NS"
 	}
 
-	reqURL := fmt.Sprintf("%s/%s?modules=price", yahooSummaryURL, url.PathEscape(yahooSymbol))
+	crumb, cookies, err := yahoo.GetCrumb()
+	if err != nil {
+		return nil, fmt.Errorf("yahoo price: %w", err)
+	}
+
+	reqURL := fmt.Sprintf("%s/%s?modules=price&crumb=%s", yahooSummaryURL, url.PathEscape(yahooSymbol), url.QueryEscape(crumb))
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
