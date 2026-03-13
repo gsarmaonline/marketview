@@ -85,7 +85,7 @@ func (s *Server) Shutdown() {
 }
 
 func (s *Server) handleNews(c *gin.Context) {
-	items, err := news.Fetch(20)
+	items, err := news.Fetch(10)
 	if err != nil {
 		log.Printf("error fetching news: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch news"})
