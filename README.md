@@ -19,7 +19,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
   - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), PDF parsing, supply chain extraction
-- **Python** (`python/`) - PDF text extraction and Related Party Transactions parsing (`parse_pdf.py`); uses `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
+- **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for supply chain extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
   - `internal/portfolio` - portfolio holdings CRUD
   - `internal/portfolio/db` - sqlc-generated type-safe query code (do not edit)
@@ -35,11 +35,16 @@ make up   # starts postgres, backend, and frontend via Docker Compose
 Or locally:
 
 ```bash
-# requires a local Postgres instance
+# requires a local Postgres instance and the Python parser running
+pip install -r python/requirements.txt   # first time only
+python3 python/server.py                 # pdf-parser on :5001
+
 export DB_HOST=localhost DB_USER=marketview DB_PASSWORD=marketview DB_NAME=marketview
 go run main.go              # backend on :8080
 cd frontend && npm run dev  # frontend on :3000
 ```
+
+The backend reads `PARSER_URL` (default `http://localhost:5001`) to locate the PDF parser service.
 
 ## Development
 
