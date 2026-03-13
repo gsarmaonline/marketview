@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS supply_chain_cache (
+CREATE TABLE IF NOT EXISTS supply_chain_store (
     symbol      VARCHAR(50) NOT NULL,
     report_year VARCHAR(20) NOT NULL,
     entities    JSONB       NOT NULL,
