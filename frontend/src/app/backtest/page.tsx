@@ -183,7 +183,7 @@ export default function BacktestPage() {
 
       <div className="card">
         <form onSubmit={handleSubmit}>
-          <div className="form-row" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+          <div className="form-row" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label>Symbol</label>
               <input
@@ -213,8 +213,8 @@ export default function BacktestPage() {
             </div>
           </div>
 
-          <div className="form-row" style={{ gridTemplateColumns: "1fr 3fr", gap: "1rem", alignItems: "flex-end" }}>
-            <div className="form-group" style={{ margin: 0 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "flex-end" }}>
+            <div className="form-group" style={{ margin: 0, minWidth: 160 }}>
               <label>Strategy</label>
               <select
                 value={strategy.name}
@@ -242,7 +242,7 @@ export default function BacktestPage() {
 
       {result && (
         <>
-          <div className="summary-grid" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
+          <div className="summary-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
             <MetricCard
               label="Final Value"
               value={fmt(result.final_value)}
