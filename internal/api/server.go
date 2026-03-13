@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"marketview/internal/backtest"
 	"marketview/internal/deepresearch"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
@@ -61,6 +62,7 @@ func New(ctx context.Context, pool *pgxpool.Pool, inds []indicators.Indicator, m
 	r.GET("/api/mutual-fund/:schemeCode", mfHandler.HandleDetails)
 	r.GET("/api/stock/:symbol/deep-research", drHandler.HandleDeepResearch)
 	r.GET("/api/stock/:symbol/price", s.handleStockPrice)
+	r.POST("/api/backtest", backtest.NewHandler().Handle)
 
 	// Portfolio routes (requires a DB pool)
 	if pool != nil {
