@@ -22,10 +22,13 @@ func (m *mockProvider) FetchAnnualReports(symbol string) ([]AnnualReport, error)
 
 // mockStore is a test double for StoreInterface.
 type mockStore struct {
-	entities []SupplyChainEntity
-	hit      bool
-	err      error
-	setCalls int
+	entities            []SupplyChainEntity
+	hit                 bool
+	err                 error
+	setCalls            int
+	shareholding        *ShareholdingPattern
+	shareholdingHit     bool
+	shareholdingSetCall int
 }
 
 func (m *mockStore) Get(ctx context.Context, symbol, reportYear string) ([]SupplyChainEntity, bool, error) {
@@ -37,6 +40,16 @@ func (m *mockStore) Set(ctx context.Context, symbol, reportYear string, entities
 	return m.err
 }
 
+func (m *mockStore) GetShareholding(ctx context.Context, symbol string) (*ShareholdingPattern, bool, error) {
+	return m.shareholding, m.shareholdingHit, m.err
+}
+
+func (m *mockStore) SetShareholding(ctx context.Context, symbol string, pattern *ShareholdingPattern) error {
+	m.shareholdingSetCall++
+	m.shareholding = pattern
+	return m.err
+}
+
 // ── Service.FetchAnnualReports ────────────────────────────────────────────────
 
 func TestService_FetchAnnualReports_FirstProviderSucceeds(t *testing.T) {
@@ -44,7 +57,7 @@ func TestService_FetchAnnualReports_FirstProviderSucceeds(t *testing.T) {
 		{SeqNumber: 1, Issuer: "RELIANCE", Year: "2024", Subject: "Annual Report 2024", PDFLink: "http://example.com/2024.pdf"},
 	}
 	p := &mockProvider{name: "NSE", reports: want}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 
 	reports, source, err := svc.FetchAnnualReports("RELIANCE")
 	if err != nil {
@@ -62,7 +75,7 @@ func TestService_FetchAnnualReports_FirstFails_SecondSucceeds(t *testing.T) {
 	want := []AnnualReport{{SeqNumber: 1, Year: "2023"}}
 	p1 := &mockProvider{name: "NSE", err: errors.New("NSE down")}
 	p2 := &mockProvider{name: "BSE", reports: want}
-	svc := NewService(nil, p1, p2)
+	svc := NewService(nil, nil, p1, p2)
 
 	reports, source, err := svc.FetchAnnualReports("TCS")
 	if err != nil {
@@ -79,7 +92,7 @@ func TestService_FetchAnnualReports_FirstFails_SecondSucceeds(t *testing.T) {
 func TestService_FetchAnnualReports_AllFail(t *testing.T) {
 	p1 := &mockProvider{name: "NSE", err: errors.New("NSE down")}
 	p2 := &mockProvider{name: "BSE", err: errors.New("BSE down")}
-	svc := NewService(nil, p1, p2)
+	svc := NewService(nil, nil, p1, p2)
 
 	_, _, err := svc.FetchAnnualReports("INFY")
 	if err == nil {
@@ -88,7 +101,7 @@ func TestService_FetchAnnualReports_AllFail(t *testing.T) {
 }
 
 func TestService_FetchAnnualReports_NoProviders(t *testing.T) {
-	svc := NewService(nil)
+	svc := NewService(nil, nil)
 	_, _, err := svc.FetchAnnualReports("WIPRO")
 	if err == nil {
 		t.Error("expected error with no providers, got nil")
@@ -97,7 +110,7 @@ func TestService_FetchAnnualReports_NoProviders(t *testing.T) {
 
 func TestService_FetchAnnualReports_NormalisesSymbol(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 
 	_, _, err := svc.FetchAnnualReports("  reliance  ")
 	if err != nil {
@@ -110,7 +123,7 @@ func TestService_FetchAnnualReports_NormalisesSymbol(t *testing.T) {
 
 func TestService_FetchAnnualReports_EmptyReportsOK(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 
 	reports, source, err := svc.FetchAnnualReports("SBIN")
 	if err != nil {
@@ -131,7 +144,7 @@ func TestService_FetchAnnualReports_TriesProvidersInOrder(t *testing.T) {
 	p3 := &mockProvider{name: "C", reports: []AnnualReport{{Year: "2024"}}}
 
 	// wrap to track order
-	tracing := NewService(nil,
+	tracing := NewService(nil, nil,
 		&tracingProvider{inner: p1, order: &order},
 		&tracingProvider{inner: p2, order: &order},
 		&tracingProvider{inner: p3, order: &order},
@@ -165,7 +178,7 @@ func TestService_Fetch_ReturnsDeepResearch(t *testing.T) {
 		{SeqNumber: 1, Issuer: "HDFC", Year: "2024"},
 	}
 	p := &mockProvider{name: "NSE", reports: reports}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 	svc.financialsFetcher = nil // disable Yahoo calls in unit tests
 
 	result, err := svc.Fetch(context.Background(), "hdfcbank")
@@ -185,7 +198,7 @@ func TestService_Fetch_ReturnsDeepResearch(t *testing.T) {
 
 func TestService_Fetch_ErrorPropagated(t *testing.T) {
 	p := &mockProvider{name: "NSE", err: errors.New("down")}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 
 	_, err := svc.Fetch(context.Background(), "RELIANCE")
 	if err == nil {
@@ -195,7 +208,7 @@ func TestService_Fetch_ErrorPropagated(t *testing.T) {
 
 func TestService_Fetch_SymbolNormalised(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 	svc.financialsFetcher = nil
 
 	result, err := svc.Fetch(context.Background(), "  tcs  ")
@@ -209,7 +222,7 @@ func TestService_Fetch_SymbolNormalised(t *testing.T) {
 
 func TestService_Fetch_YahooFinancialsPopulated(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 	svc.financialsFetcher = func(symbol string) (*Financials, error) {
 		return &Financials{
 			PnL: ProfitAndLoss{RevenueFromOperations: "9740000000000", ProfitAfterTax: "679000000000"},
@@ -230,7 +243,7 @@ func TestService_Fetch_YahooFinancialsPopulated(t *testing.T) {
 
 func TestService_Fetch_YahooFinancialsErrorIsNonFatal(t *testing.T) {
 	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
-	svc := NewService(nil, p)
+	svc := NewService(nil, nil, p)
 	svc.financialsFetcher = func(symbol string) (*Financials, error) {
 		return nil, errors.New("yahoo unavailable")
 	}
@@ -253,7 +266,7 @@ func TestService_Fetch_StoreHit_ReturnsSupplyChain(t *testing.T) {
 		{SeqNumber: 1, Year: "2024", PDFLink: "http://example.com/2024.pdf"},
 	}
 	p := &mockProvider{name: "NSE", reports: reports}
-	svc := NewService(store, p)
+	svc := NewService(store, nil, p)
 	svc.financialsFetcher = nil
 
 	result, err := svc.Fetch(context.Background(), "RELIANCE")
@@ -274,7 +287,7 @@ func TestService_Fetch_StoreMiss_SkipsParserWhenNoPDFLink(t *testing.T) {
 		{SeqNumber: 1, Year: "2024", PDFLink: ""},
 	}
 	p := &mockProvider{name: "NSE", reports: reports}
-	svc := NewService(store, p)
+	svc := NewService(store, nil, p)
 	svc.financialsFetcher = nil
 
 	result, err := svc.Fetch(context.Background(), "TCS")
@@ -298,7 +311,7 @@ func TestService_Fetch_StoreHit_SkipsParserSetCall(t *testing.T) {
 		{SeqNumber: 1, Year: "2024", PDFLink: "http://example.com/2024.pdf"},
 	}
 	p := &mockProvider{name: "NSE", reports: reports}
-	svc := NewService(store, p)
+	svc := NewService(store, nil, p)
 	svc.financialsFetcher = nil
 
 	result, err := svc.Fetch(context.Background(), "INFY")
@@ -310,6 +323,102 @@ func TestService_Fetch_StoreHit_SkipsParserSetCall(t *testing.T) {
 	}
 	if len(result.SupplyChain) != 1 {
 		t.Errorf("expected 1 supply chain entity, got %d", len(result.SupplyChain))
+	}
+}
+
+// ── Service.Fetch shareholding ────────────────────────────────────────────────
+
+func TestService_Fetch_ShareholdingPopulated(t *testing.T) {
+	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
+	svc := NewService(nil, nil, p)
+	svc.financialsFetcher = nil
+	svc.shareholdingFetcher = func(symbol string) (*ShareholdingPattern, error) {
+		return &ShareholdingPattern{
+			QuarterEndDate: "31-Dec-2024",
+			Category: ShareholdingCategory{
+				PromoterAndPromoterGroup: "50.33",
+				PublicAndOthers:          "49.67",
+			},
+		}, nil
+	}
+
+	result, err := svc.Fetch(context.Background(), "RELIANCE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ShareholdingPattern == nil {
+		t.Fatal("expected shareholding pattern, got nil")
+	}
+	if result.ShareholdingPattern.Category.PromoterAndPromoterGroup != "50.33" {
+		t.Errorf("unexpected promoter pct: %q", result.ShareholdingPattern.Category.PromoterAndPromoterGroup)
+	}
+}
+
+func TestService_Fetch_ShareholdingErrorIsNonFatal(t *testing.T) {
+	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
+	svc := NewService(nil, nil, p)
+	svc.financialsFetcher = nil
+	svc.shareholdingFetcher = func(symbol string) (*ShareholdingPattern, error) {
+		return nil, errors.New("NSE unavailable")
+	}
+
+	result, err := svc.Fetch(context.Background(), "RELIANCE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ShareholdingPattern != nil {
+		t.Errorf("expected nil shareholding on error, got %+v", result.ShareholdingPattern)
+	}
+}
+
+func TestService_Fetch_ShareholdingStoreHit(t *testing.T) {
+	sp := &ShareholdingPattern{
+		QuarterEndDate: "30-Sep-2024",
+		Category:       ShareholdingCategory{PromoterAndPromoterGroup: "48.0", PublicAndOthers: "52.0"},
+	}
+	store := &mockStore{shareholding: sp, shareholdingHit: true}
+	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
+	svc := NewService(store, nil, p)
+	svc.financialsFetcher = nil
+	fetcherCalled := false
+	svc.shareholdingFetcher = func(symbol string) (*ShareholdingPattern, error) {
+		fetcherCalled = true
+		return nil, errors.New("should not be called")
+	}
+
+	result, err := svc.Fetch(context.Background(), "TCS")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fetcherCalled {
+		t.Error("fetcher should not be called on store hit")
+	}
+	if result.ShareholdingPattern == nil || result.ShareholdingPattern.QuarterEndDate != "30-Sep-2024" {
+		t.Errorf("unexpected shareholding pattern: %+v", result.ShareholdingPattern)
+	}
+}
+
+func TestService_Fetch_ShareholdingStoreMiss_Persists(t *testing.T) {
+	store := &mockStore{shareholdingHit: false}
+	p := &mockProvider{name: "NSE", reports: []AnnualReport{}}
+	svc := NewService(store, nil, p)
+	svc.financialsFetcher = nil
+	svc.shareholdingFetcher = func(symbol string) (*ShareholdingPattern, error) {
+		return &ShareholdingPattern{
+			QuarterEndDate: "31-Dec-2024",
+			Category:       ShareholdingCategory{PromoterAndPromoterGroup: "50.33", PublicAndOthers: "49.67"},
+		}, nil
+	}
+
+	result, err := svc.Fetch(context.Background(), "INFY")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.shareholdingSetCall != 1 {
+		t.Errorf("expected 1 SetShareholding call, got %d", store.shareholdingSetCall)
+	}
+	if result.ShareholdingPattern == nil {
+		t.Fatal("expected shareholding pattern in result")
 	}
 }
 

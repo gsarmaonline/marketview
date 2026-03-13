@@ -72,12 +72,36 @@ type Financials struct {
 	Highlights   FinancialHighlights `json:"highlights"`
 }
 
+// ShareholderEntry represents a named entity in the top shareholders list.
+type ShareholderEntry struct {
+	Name           string `json:"name"`
+	NoOfShares     string `json:"noOfShares,omitempty"`
+	PercentageHeld string `json:"percentageHeld"`
+}
+
+// ShareholdingCategory breaks down aggregate percentages by investor class.
+type ShareholdingCategory struct {
+	PromoterAndPromoterGroup string `json:"promoterAndPromoterGroup"`
+	FII                      string `json:"fii,omitempty"`
+	DII                      string `json:"dii,omitempty"`
+	MutualFunds              string `json:"mutualFunds,omitempty"`
+	PublicAndOthers          string `json:"publicAndOthers"`
+}
+
+// ShareholdingPattern holds the most recent quarterly shareholding breakdown.
+type ShareholdingPattern struct {
+	QuarterEndDate  string               `json:"quarterEndDate"`
+	Category        ShareholdingCategory `json:"category"`
+	TopShareholders []ShareholderEntry   `json:"topShareholders,omitempty"`
+}
+
 // DeepResearch aggregates all deep research data for a stock.
 type DeepResearch struct {
-	Symbol              string              `json:"symbol"`
-	AnnualReports       []AnnualReport      `json:"annualReports"`
-	AnnualReportsSource string              `json:"annualReportsSource"` // "NSE" or "BSE"
-	SupplyChain         []SupplyChainEntity `json:"supplyChain"`
-	Financials          *Financials         `json:"financials,omitempty"`
-	ParsedReportYear    string              `json:"parsedReportYear,omitempty"`
+	Symbol              string               `json:"symbol"`
+	AnnualReports       []AnnualReport       `json:"annualReports"`
+	AnnualReportsSource string               `json:"annualReportsSource"` // "NSE" or "BSE"
+	SupplyChain         []SupplyChainEntity  `json:"supplyChain"`
+	Financials          *Financials          `json:"financials,omitempty"`
+	ShareholdingPattern *ShareholdingPattern `json:"shareholdingPattern,omitempty"`
+	ParsedReportYear    string               `json:"parsedReportYear,omitempty"`
 }

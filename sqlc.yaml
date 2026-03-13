@@ -2,7 +2,7 @@ version: "2"
 sql:
   - engine: "postgresql"
     schema: "internal/db/schema.sql"
-    queries: "db/queries/"
+    queries: "db/queries/portfolio"
     gen:
       go:
         package: "db"
@@ -11,4 +11,19 @@ sql:
         emit_json_tags: true
         overrides:
           - column: "holdings.metadata"
+            go_type: "encoding/json.RawMessage"
+
+  - engine: "postgresql"
+    schema: "internal/db/schema.sql"
+    queries: "db/queries/deepresearch"
+    gen:
+      go:
+        package: "drdb"
+        out: "internal/deepresearch/db"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        overrides:
+          - column: "supply_chain_store.entities"
+            go_type: "encoding/json.RawMessage"
+          - column: "shareholding_pattern_store.pattern"
             go_type: "encoding/json.RawMessage"

@@ -5,24 +5,34 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"marketview/internal/nse"
 )
 
 // Service fetches deep research data for a stock symbol by trying each
 // registered provider in order, returning the first successful result.
 type Service struct {
-	providers         []AnnualReportProvider
-	store             StoreInterface
-	financialsFetcher func(symbol string) (*Financials, error)
+	providers            []AnnualReportProvider
+	store                StoreInterface
+	financialsFetcher    func(symbol string) (*Financials, error)
+	shareholdingFetcher  func(symbol string) (*ShareholdingPattern, error)
 }
 
 // NewService creates a Service with the given providers tried in order.
-// Pass a non-nil StoreInterface to enable Postgres-backed supply chain persistence.
-func NewService(store StoreInterface, providers ...AnnualReportProvider) *Service {
-	return &Service{
+// Pass a non-nil nseClient to enable shareholding pattern fetching.
+// Pass a non-nil StoreInterface to enable Postgres-backed persistence.
+func NewService(store StoreInterface, nseClient *nse.Client, providers ...AnnualReportProvider) *Service {
+	svc := &Service{
 		providers:         providers,
 		store:             store,
 		financialsFetcher: FetchYahooFinancials,
 	}
+	if nseClient != nil {
+		svc.shareholdingFetcher = func(symbol string) (*ShareholdingPattern, error) {
+			return FetchNSEShareholding(nseClient, symbol)
+		}
+	}
+	return svc
 }
 
 // FetchAnnualReports tries each provider in order, returning on the first success.
@@ -64,6 +74,27 @@ func (s *Service) Fetch(ctx context.Context, symbol string) (*DeepResearch, erro
 			dr.Financials = f
 		} else {
 			log.Printf("yahoo financials failed for %s: %v", symbol, fErr)
+		}
+	}
+
+	// Fetch shareholding pattern from NSE (cache-first).
+	if s.shareholdingFetcher != nil {
+		if s.store != nil {
+			if sp, ok, storeErr := s.store.GetShareholding(ctx, symbol); storeErr == nil && ok {
+				dr.ShareholdingPattern = sp
+			}
+		}
+		if dr.ShareholdingPattern == nil {
+			if sp, spErr := s.shareholdingFetcher(symbol); spErr == nil {
+				dr.ShareholdingPattern = sp
+				if s.store != nil {
+					if storeErr := s.store.SetShareholding(ctx, symbol, sp); storeErr != nil {
+						log.Printf("shareholding store write failed for %s: %v", symbol, storeErr)
+					}
+				}
+			} else {
+				log.Printf("shareholding fetch failed for %s: %v", symbol, spErr)
+			}
 		}
 	}
 
