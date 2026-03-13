@@ -259,18 +259,10 @@ export default function DashboardPage() {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 24px" }}>
-      {/* Header */}
       <div style={{ marginBottom: 40 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
-            <h1
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: "#e2e8f0",
-                letterSpacing: "-0.5px",
-              }}
-            >
+            <h1 style={{ fontSize: 28, fontWeight: 700, color: "#e2e8f0", letterSpacing: "-0.5px" }}>
               Market Indicators
             </h1>
             <p style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>
@@ -313,7 +305,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Error state */}
       {error && (
         <div
           style={{
@@ -330,15 +321,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Loading skeleton */}
       {loading && indicators.length === 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: 20,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
           {[1, 2, 3].map((i) => (
             <div
               key={i}
@@ -355,15 +339,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Indicator grid */}
       {indicators.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: 20,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
           {indicators.map((ind) => (
             <IndicatorCard key={ind.name} indicator={ind} />
           ))}
@@ -371,14 +348,7 @@ export default function DashboardPage() {
       )}
 
       {!loading && !error && indicators.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "80px 24px",
-            color: "#475569",
-            fontSize: 14,
-          }}
-        >
+        <div style={{ textAlign: "center", padding: "80px 24px", color: "#475569", fontSize: 14 }}>
           No indicators available.
         </div>
       )}

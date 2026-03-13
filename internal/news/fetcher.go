@@ -15,6 +15,7 @@ type NewsItem struct {
 	Link        string `json:"link"`
 	PublishedAt string `json:"publishedAt"`
 	Source      string `json:"source"`
+	Symbol      string `json:"symbol,omitempty"` // set for stock-specific news, empty for general news
 }
 
 type rssItem struct {

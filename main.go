@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"marketview/internal/api"
 	"marketview/internal/deepresearch"
 	"marketview/internal/indicators"
 	"marketview/internal/mutualfund"
+	"marketview/internal/news"
 	"marketview/internal/nse"
 )
 
 func main() {
+	ctx := context.Background()
+
 	nseClient, err := nse.New()
 	if err != nil {
 		log.Fatalf("failed to initialise NSE client: %v", err)
@@ -26,6 +30,13 @@ func main() {
 	drService := deepresearch.NewService(nseClient)
 	drHandler := deepresearch.NewHandler(drService)
 
-	srv := api.New(allIndicators, mfHandler, drHandler)
+	newsStore := news.NewStore()
+
+	srv, err := api.New(ctx, allIndicators, mfHandler, newsStore, drHandler)
+	if err != nil {
+		log.Fatalf("failed to initialise server: %v", err)
+	}
+	defer srv.Shutdown()
+
 	log.Fatal(srv.Run(":8080"))
 }
