@@ -338,6 +338,75 @@ async function capturePortfolioFilled() {
 }
 
 // ---------------------------------------------------------------------------
+// Backtest results capture
+// ---------------------------------------------------------------------------
+
+/**
+ * Captures backtest-results screenshots by filling the form and submitting it,
+ * then waiting for the equity curve and metrics to render.
+ */
+async function captureBacktestFilled() {
+  const { baseUrl, outputDir, viewports, pageTimeout } = config;
+
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  const results = [];
+
+  try {
+    for (const vp of viewports) {
+      const context = await browser.newContext({
+        viewport: { width: vp.width, height: vp.height },
+        reducedMotion: 'reduce',
+      });
+
+      const url = `${baseUrl}/backtest`;
+      const filename = `backtest-results-${vp.name}.png`;
+      const filepath = path.join(outputDir, filename);
+
+      console.log(`  backtest-results  [${vp.name} ${vp.width}x${vp.height}]`);
+
+      const page = await context.newPage();
+      try {
+        await page.goto(url, { waitUntil: 'networkidle', timeout: pageTimeout });
+
+        // Fill the form
+        await page.fill('input[placeholder="e.g. RELIANCE"]', 'RELIANCE');
+        await page.fill('input[type="date"]:first-of-type', '2020-01-01');
+        // Set from/to dates via evaluate to avoid browser date-picker quirks
+        await page.evaluate(() => {
+          const dates = document.querySelectorAll('input[type="date"]');
+          if (dates[0]) { dates[0].value = '2020-01-01'; dates[0].dispatchEvent(new Event('input', { bubbles: true })); }
+          if (dates[1]) { dates[1].value = '2025-01-01'; dates[1].dispatchEvent(new Event('input', { bubbles: true })); }
+        });
+        await page.fill('input[type="number"]', '100000');
+
+        // Submit and wait for equity curve SVG to appear
+        await page.click('button[type="submit"]');
+        await page.waitForSelector('svg polyline', { timeout: 30000 });
+        // Let the chart and metrics settle
+        await page.waitForTimeout(800);
+
+        await page.screenshot({ path: filepath, fullPage: true });
+        results.push({ page: 'backtest-results', viewport: vp.name, file: filepath });
+      } finally {
+        await page.close();
+      }
+
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -345,14 +414,14 @@ async function main() {
   console.log('MarketView screenshot framework');
   console.log(`  base URL : ${config.baseUrl}`);
   console.log(`  output   : ${config.outputDir}`);
-  console.log(`  pages    : ${config.pages.map((p) => p.name).join(', ')}, portfolio-filled`);
+  console.log(`  pages    : ${config.pages.map((p) => p.name).join(', ')}, portfolio-filled, backtest-results`);
   console.log(`  viewports: ${config.viewports.map((v) => v.name).join(', ')}`);
   console.log('');
 
-  console.log('[ 1/4 ] checking server...');
+  console.log('[ 1/5 ] checking server...');
   const cleanup = await ensureServer();
 
-  console.log('[ 2/4 ] capturing standard screenshots...');
+  console.log('[ 2/5 ] capturing standard screenshots...');
   let results;
   try {
     results = await captureAll();
@@ -360,11 +429,15 @@ async function main() {
     cleanup();
   }
 
-  console.log('[ 3/4 ] capturing portfolio-filled screenshots...');
+  console.log('[ 3/5 ] capturing portfolio-filled screenshots...');
   const filledResults = await capturePortfolioFilled();
   results = results.concat(filledResults);
 
-  console.log('[ 4/4 ] done.');
+  console.log('[ 4/5 ] capturing backtest-results screenshots...');
+  const backtestResults = await captureBacktestFilled();
+  results = results.concat(backtestResults);
+
+  console.log('[ 5/5 ] done.');
   console.log(`\n${results.length} screenshots saved to ${config.outputDir}/`);
   results.forEach((r) => {
     console.log(`  ${path.basename(r.file)}`);
