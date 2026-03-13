@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "screenshots": "node scripts/take-screenshots.js"
+    "screenshot": "node scripts/screenshot.js"
   },
   "dependencies": {
     "next": "15.2.2",
@@ -17,7 +17,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "puppeteer": "^24.39.0",
+    "playwright": "^1.50.0",
     "typescript": "^5"
   }
 }

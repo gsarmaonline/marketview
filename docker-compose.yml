@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: marketview
       POSTGRES_DB: marketview
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -60,6 +60,7 @@ services:
       - backend
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8080
+      - BACKEND_URL=http://backend:8080
     restart: unless-stopped
 
 volumes:
