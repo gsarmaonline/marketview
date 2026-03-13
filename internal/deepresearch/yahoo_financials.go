@@ -3,11 +3,64 @@ package deepresearch
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 )
 
-const yahooQuoteSummaryURL = "https://query1.finance.yahoo.com/v10/finance/quoteSummary/%s?modules=%s"
+const yahooQuoteSummaryURL = "https://query1.finance.yahoo.com/v10/finance/quoteSummary/%s?modules=%s&crumb=%s"
+
+// yahooCrumb holds a cached crumb + cookie for Yahoo Finance API calls.
+var yahooCrumb struct {
+	sync.Mutex
+	value   string
+	cookies []*http.Cookie
+	fetchedAt time.Time
+}
+
+// getYahooCrumb returns a valid crumb and cookies, fetching fresh ones if needed.
+func getYahooCrumb() (string, []*http.Cookie, error) {
+	yahooCrumb.Lock()
+	defer yahooCrumb.Unlock()
+
+	if yahooCrumb.value != "" && time.Since(yahooCrumb.fetchedAt) < 30*time.Minute {
+		return yahooCrumb.value, yahooCrumb.cookies, nil
+	}
+
+	// Fetch cookies from consent endpoint
+	consentReq, _ := http.NewRequest(http.MethodGet, "https://fc.yahoo.com", nil)
+	consentReq.Header.Set("User-Agent", "Mozilla/5.0")
+	consentResp, err := http.DefaultClient.Do(consentReq)
+	if err != nil {
+		return "", nil, fmt.Errorf("yahoo crumb: consent request failed: %w", err)
+	}
+	consentResp.Body.Close()
+	cookies := consentResp.Cookies()
+
+	// Fetch crumb
+	crumbReq, _ := http.NewRequest(http.MethodGet, "https://query2.finance.yahoo.com/v1/test/getcrumb", nil)
+	crumbReq.Header.Set("User-Agent", "Mozilla/5.0")
+	for _, c := range cookies {
+		crumbReq.AddCookie(c)
+	}
+	crumbResp, err := http.DefaultClient.Do(crumbReq)
+	if err != nil {
+		return "", nil, fmt.Errorf("yahoo crumb: getcrumb request failed: %w", err)
+	}
+	defer crumbResp.Body.Close()
+	b, _ := io.ReadAll(crumbResp.Body)
+	crumb := string(b)
+	if crumb == "" {
+		return "", nil, fmt.Errorf("yahoo crumb: empty crumb returned")
+	}
+
+	yahooCrumb.value = crumb
+	yahooCrumb.cookies = cookies
+	yahooCrumb.fetchedAt = time.Now()
+	return crumb, cookies, nil
+}
 
 type yahooRawValue struct {
 	Raw float64 `json:"raw"`
@@ -24,45 +77,28 @@ type yahooIncomeStatementEntry struct {
 	IncomeBeforeTax             yahooRawValue `json:"incomeBeforeTax"`
 }
 
-type yahooBalanceSheetEntry struct {
-	Cash                    yahooRawValue `json:"cash"`
-	TotalCurrentAssets      yahooRawValue `json:"totalCurrentAssets"`
-	TotalAssets             yahooRawValue `json:"totalAssets"`
-	TotalCurrentLiabilities yahooRawValue `json:"totalCurrentLiabilities"`
-	TotalStockholderEquity  yahooRawValue `json:"totalStockholderEquity"`
-	LongTermDebt            yahooRawValue `json:"longTermDebt"`
-	Inventory               yahooRawValue `json:"inventory"`
-	NetReceivables          yahooRawValue `json:"netReceivables"`
-	PropertyPlantEquipment  yahooRawValue `json:"propertyPlantEquipment"`
-}
-
-type yahooCashflowEntry struct {
-	TotalCashFromOperatingActivities yahooRawValue `json:"totalCashFromOperatingActivities"`
-	TotalCashFromInvestingActivities yahooRawValue `json:"totalCashFromInvestingActivities"`
-	TotalCashFromFinancingActivities yahooRawValue `json:"totalCashFromFinancingActivities"`
-	ChangeInCash                     yahooRawValue `json:"changeInCash"`
-}
-
 type yahooFinancialsResponse struct {
 	QuoteSummary struct {
 		Result []struct {
 			IncomeStatementHistory struct {
 				IncomeStatementHistory []yahooIncomeStatementEntry `json:"incomeStatementHistory"`
 			} `json:"incomeStatementHistory"`
-			BalanceSheetHistory struct {
-				BalanceSheetStatements []yahooBalanceSheetEntry `json:"balanceSheetStatements"`
-			} `json:"balanceSheetHistory"`
-			CashflowStatementHistory struct {
-				CashflowStatements []yahooCashflowEntry `json:"cashflowStatements"`
-			} `json:"cashflowStatementHistory"`
 			DefaultKeyStatistics struct {
 				TrailingEps               yahooRawValue `json:"trailingEps"`
 				BookValue                 yahooRawValue `json:"bookValue"`
 				ForwardAnnualDividendRate yahooRawValue `json:"forwardAnnualDividendRate"`
+				SharesOutstanding         yahooRawValue `json:"sharesOutstanding"`
 			} `json:"defaultKeyStatistics"`
+			// financialData provides balance sheet and cash flow aggregates available
+			// for Indian stocks (Yahoo's balanceSheetHistory/cashflowStatementHistory
+			// modules return empty line items for NSE/BSE symbols).
 			FinancialData struct {
-				ReturnOnEquity yahooRawValue `json:"returnOnEquity"`
-				DebtToEquity   yahooRawValue `json:"debtToEquity"`
+				ReturnOnEquity  yahooRawValue `json:"returnOnEquity"`
+				DebtToEquity    yahooRawValue `json:"debtToEquity"`
+				TotalCash       yahooRawValue `json:"totalCash"`
+				TotalDebt       yahooRawValue `json:"totalDebt"`
+				OperatingCashflow yahooRawValue `json:"operatingCashflow"`
+				FreeCashflow    yahooRawValue `json:"freeCashflow"`
 			} `json:"financialData"`
 		} `json:"result"`
 		Error interface{} `json:"error"`
@@ -106,14 +142,22 @@ func FetchYahooFinancials(symbol string) (*Financials, error) {
 }
 
 func fetchYahooFinancialsFor(yahooSymbol string) (*Financials, error) {
-	modules := "incomeStatementHistory,balanceSheetHistory,cashflowStatementHistory,defaultKeyStatistics,financialData"
-	url := fmt.Sprintf(yahooQuoteSummaryURL, yahooSymbol, modules)
+	crumb, cookies, err := getYahooCrumb()
+	if err != nil {
+		return nil, fmt.Errorf("yahoo: could not get crumb: %w", err)
+	}
+
+	modules := "incomeStatementHistory,defaultKeyStatistics,financialData"
+	url := fmt.Sprintf(yahooQuoteSummaryURL, yahooSymbol, modules, crumb)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -150,36 +194,25 @@ func fetchYahooFinancialsFor(yahooSymbol string) (*Financials, error) {
 		}
 	}
 
-	// Balance Sheet
-	if len(r.BalanceSheetHistory.BalanceSheetStatements) > 0 {
-		bs := r.BalanceSheetHistory.BalanceSheetStatements[0]
-		f.BalanceSheet = BalanceSheet{
-			Cash:               rawToStr(bs.Cash.Raw),
-			CurrentAssets:      rawToStr(bs.TotalCurrentAssets.Raw),
-			TotalAssets:        rawToStr(bs.TotalAssets.Raw),
-			CurrentLiabilities: rawToStr(bs.TotalCurrentLiabilities.Raw),
-			TotalEquity:        rawToStr(bs.TotalStockholderEquity.Raw),
-			LongTermDebt:       rawToStr(bs.LongTermDebt.Raw),
-			Inventory:          rawToStr(bs.Inventory.Raw),
-			Receivables:        rawToStr(bs.NetReceivables.Raw),
-			FixedAssets:        rawToStr(bs.PropertyPlantEquipment.Raw),
-		}
+	ks := r.DefaultKeyStatistics
+	fd := r.FinancialData
+
+	// Balance Sheet — Yahoo's balanceSheetHistory module returns empty line items
+	// for Indian stocks; use financialData aggregates + derive equity from book value.
+	totalEquity := ks.BookValue.Raw * ks.SharesOutstanding.Raw
+	f.BalanceSheet = BalanceSheet{
+		Cash:         rawToStr(fd.TotalCash.Raw),
+		TotalEquity:  rawToStr(totalEquity),
+		LongTermDebt: rawToStr(fd.TotalDebt.Raw),
 	}
 
-	// Cash Flow
-	if len(r.CashflowStatementHistory.CashflowStatements) > 0 {
-		cf := r.CashflowStatementHistory.CashflowStatements[0]
-		f.CashFlow = CashFlow{
-			FromOperations: rawToStr(cf.TotalCashFromOperatingActivities.Raw),
-			FromInvesting:  rawToStr(cf.TotalCashFromInvestingActivities.Raw),
-			FromFinancing:  rawToStr(cf.TotalCashFromFinancingActivities.Raw),
-			NetChange:      rawToStr(cf.ChangeInCash.Raw),
-		}
+	// Cash Flow — operatingCashflow is reliable; investing/financing not available.
+	f.CashFlow = CashFlow{
+		FromOperations: rawToStr(fd.OperatingCashflow.Raw),
+		NetChange:      rawToStr(fd.FreeCashflow.Raw),
 	}
 
 	// Highlights
-	ks := r.DefaultKeyStatistics
-	fd := r.FinancialData
 	f.Highlights = FinancialHighlights{
 		EPS:               floatToStr(ks.TrailingEps.Raw),
 		BookValuePerShare: floatToStr(ks.BookValue.Raw),
