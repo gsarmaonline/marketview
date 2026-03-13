@@ -20,6 +20,24 @@ func (m *mockProvider) FetchAnnualReports(symbol string) ([]AnnualReport, error)
 	return m.reports, m.err
 }
 
+// mockStore is a test double for StoreInterface.
+type mockStore struct {
+	entities   []SupplyChainEntity
+	financials *Financials
+	hit        bool
+	err        error
+	setCalls   int
+}
+
+func (m *mockStore) Get(ctx context.Context, symbol, reportYear string) ([]SupplyChainEntity, *Financials, bool, error) {
+	return m.entities, m.financials, m.hit, m.err
+}
+
+func (m *mockStore) Set(ctx context.Context, symbol, reportYear string, entities []SupplyChainEntity, financials *Financials) error {
+	m.setCalls++
+	return m.err
+}
+
 // ── Service.FetchAnnualReports ────────────────────────────────────────────────
 
 func TestService_FetchAnnualReports_FirstProviderSucceeds(t *testing.T) {
@@ -185,6 +203,102 @@ func TestService_Fetch_SymbolNormalised(t *testing.T) {
 	}
 	if result.Symbol != "TCS" {
 		t.Errorf("expected normalised symbol TCS, got %q", result.Symbol)
+	}
+}
+
+func TestService_Fetch_StoreHit_ReturnsSupplyChainAndFinancials(t *testing.T) {
+	entities := []SupplyChainEntity{
+		{Name: "Acme Corp", Relationship: "subsidiary", Amount: "100 Cr"},
+	}
+	financials := &Financials{
+		PnL: ProfitAndLoss{
+			RevenueFromOperations: "5000 Cr",
+			ProfitAfterTax:        "500 Cr",
+		},
+		Highlights: FinancialHighlights{
+			EPS: "25.50",
+			ROE: "18%",
+		},
+	}
+	store := &mockStore{
+		entities:   entities,
+		financials: financials,
+		hit:        true,
+	}
+	reports := []AnnualReport{
+		{SeqNumber: 1, Year: "2024", PDFLink: "http://example.com/2024.pdf"},
+	}
+	p := &mockProvider{name: "NSE", reports: reports}
+	svc := NewService(store, p)
+
+	result, err := svc.Fetch(context.Background(), "RELIANCE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.SupplyChain) != 1 || result.SupplyChain[0].Name != "Acme Corp" {
+		t.Errorf("unexpected supply chain: %+v", result.SupplyChain)
+	}
+	if result.Financials == nil {
+		t.Fatal("expected financials, got nil")
+	}
+	if result.Financials.PnL.RevenueFromOperations != "5000 Cr" {
+		t.Errorf("unexpected revenue: %q", result.Financials.PnL.RevenueFromOperations)
+	}
+	if result.Financials.Highlights.EPS != "25.50" {
+		t.Errorf("unexpected EPS: %q", result.Financials.Highlights.EPS)
+	}
+	if result.ParsedReportYear != "2024" {
+		t.Errorf("expected parsedReportYear 2024, got %q", result.ParsedReportYear)
+	}
+}
+
+func TestService_Fetch_StoreMiss_SkipsParserWhenNoPDFLink(t *testing.T) {
+	// Store always misses; reports have no PDF link => parser should not be called.
+	store := &mockStore{hit: false}
+	reports := []AnnualReport{
+		{SeqNumber: 1, Year: "2024", PDFLink: ""},
+	}
+	p := &mockProvider{name: "NSE", reports: reports}
+	svc := NewService(store, p)
+
+	result, err := svc.Fetch(context.Background(), "TCS")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// No PDF link => no parse attempt => no store.Set call
+	if store.setCalls != 0 {
+		t.Errorf("expected 0 store.Set calls, got %d", store.setCalls)
+	}
+	if len(result.SupplyChain) != 0 {
+		t.Errorf("expected empty supply chain, got %+v", result.SupplyChain)
+	}
+}
+
+func TestService_Fetch_StoreHitWithFinancials_SkipsParser(t *testing.T) {
+	// Store hit => parser must NOT be called (no HTTP call), Set should not be called.
+	store := &mockStore{
+		entities:   []SupplyChainEntity{{Name: "Test Co", Relationship: "subsidiary"}},
+		financials: &Financials{PnL: ProfitAndLoss{ProfitAfterTax: "200 Cr"}},
+		hit:        true,
+	}
+	reports := []AnnualReport{
+		{SeqNumber: 1, Year: "2024", PDFLink: "http://example.com/2024.pdf"},
+	}
+	p := &mockProvider{name: "NSE", reports: reports}
+	svc := NewService(store, p)
+
+	result, err := svc.Fetch(context.Background(), "INFY")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.setCalls != 0 {
+		t.Errorf("store.Set should not be called on cache hit, got %d calls", store.setCalls)
+	}
+	if result.Financials == nil {
+		t.Fatal("expected financials from store, got nil")
+	}
+	if result.Financials.PnL.ProfitAfterTax != "200 Cr" {
+		t.Errorf("unexpected PAT: %q", result.Financials.PnL.ProfitAfterTax)
 	}
 }
 
