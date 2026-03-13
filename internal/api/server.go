@@ -13,6 +13,7 @@ import (
 	"marketview/internal/mutualfund"
 	"marketview/internal/news"
 	"marketview/internal/portfolio"
+	"marketview/internal/stock"
 )
 
 // Server wires up all HTTP routes and their dependencies.
@@ -58,6 +59,7 @@ func New(ctx context.Context, pool *pgxpool.Pool, inds []indicators.Indicator, m
 	r.GET("/api/mutual-fund/search", mfHandler.HandleSearch)
 	r.GET("/api/mutual-fund/:schemeCode", mfHandler.HandleDetails)
 	r.GET("/api/stock/:symbol/deep-research", drHandler.HandleDeepResearch)
+	r.GET("/api/stock/:symbol/price", s.handleStockPrice)
 
 	// Portfolio routes (requires a DB pool)
 	if pool != nil {
@@ -96,6 +98,17 @@ func (s *Server) handleStockNews(c *gin.Context) {
 	symbol := c.Param("symbol")
 	items := s.newsStore.Get(symbol)
 	c.JSON(http.StatusOK, items)
+}
+
+func (s *Server) handleStockPrice(c *gin.Context) {
+	symbol := c.Param("symbol")
+	result, err := stock.FetchPrice(symbol)
+	if err != nil {
+		log.Printf("error fetching price for %s: %v", symbol, err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (s *Server) handleIndicators(c *gin.Context) {

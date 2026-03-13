@@ -18,6 +18,7 @@ A tool for Indian market investors to assess whether now is a good time to inves
   - `internal/mutualfund` - mutual fund search and holdings (mfapi.in + Yahoo Finance)
   - `internal/news` - RSS news aggregator (Economic Times, Moneycontrol, Business Standard) + in-memory stock news pipeline (`Store`)
   - `internal/nse` - NSE India HTTP client
+  - `internal/stock` - stock price fetching via Yahoo Finance (used by the portfolio to auto-populate current value)
   - `internal/deepresearch` - per-stock deep research: annual reports via NSE (BSE fallback), PDF parsing, supply chain extraction
 - **Python PDF parser** (`python/`) - long-running Flask HTTP service (`server.py`) on `:5001`; exposes `POST /parse` for supply chain extraction from annual report PDFs using `pdfplumber` with `pytesseract` OCR fallback for scanned PDFs
   - `internal/db` - PostgreSQL connection, startup migration (`schema.sql` embedded)
@@ -133,6 +134,21 @@ Example payload:
   "metadata": {}
 }
 ```
+
+### Stock Price
+
+`GET /api/stock/:symbol/price` — fetch the current market price for an NSE stock symbol (e.g. `RELIANCE`). Appends `.NS` automatically for Yahoo Finance lookup.
+
+```json
+{
+  "symbol": "RELIANCE.NS",
+  "price": 1285.50,
+  "currency": "INR",
+  "short_name": "Reliance Industries Limited"
+}
+```
+
+Used by the portfolio UI to auto-populate the current value field when adding or editing a stock holding.
 
 ### Deep Research
 

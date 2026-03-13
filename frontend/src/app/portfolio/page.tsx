@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, useRef, FormEvent } from "react";
 
 type AssetType = "stock" | "fd" | "mutual_fund" | "gold" | "other";
 
@@ -60,6 +60,9 @@ export default function PortfolioPage() {
   const [editing, setEditing] = useState<Holding | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
+  const [priceFetching, setPriceFetching] = useState(false);
+  const [priceError, setPriceError] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = () =>
     fetch("/api/portfolio/holdings")
@@ -70,9 +73,58 @@ export default function PortfolioPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Auto-fetch current price when stock symbol changes
+  useEffect(() => {
+    if (form.asset_type !== "stock" || !form.name.trim()) {
+      setPriceError("");
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setPriceFetching(true);
+      setPriceError("");
+      try {
+        const res = await fetch(`/api/stock/${encodeURIComponent(form.name.trim())}/price`);
+        if (!res.ok) throw new Error("Symbol not found");
+        const data = await res.json();
+        const price = data.price as number;
+        const qty = form.quantity;
+        setForm((prev) => ({
+          ...prev,
+          current_value: qty != null ? parseFloat((price * qty).toFixed(2)) : parseFloat(price.toFixed(2)),
+        }));
+      } catch {
+        setPriceError("Could not fetch price — enter manually");
+      } finally {
+        setPriceFetching(false);
+      }
+    }, 600);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.name, form.asset_type]);
+
+  // Recalculate current_value when quantity changes (for stocks with a fetched price)
+  function handleQuantityChange(val: string) {
+    const qty = val ? parseFloat(val) : null;
+    setForm((prev) => {
+      if (prev.asset_type === "stock" && prev.current_value != null && prev.quantity != null && prev.quantity !== 0) {
+        const pricePerShare = prev.current_value / prev.quantity;
+        return {
+          ...prev,
+          quantity: qty,
+          current_value: qty != null ? parseFloat((pricePerShare * qty).toFixed(2)) : null,
+        };
+      }
+      return { ...prev, quantity: qty };
+    });
+  }
+
   function openAdd() {
     setEditing(null);
     setForm(emptyForm());
+    setPriceError("");
     setShowModal(true);
   }
 
@@ -88,6 +140,7 @@ export default function PortfolioPage() {
       notes: h.notes,
       metadata: JSON.stringify(h.metadata ?? {}, null, 2),
     });
+    setPriceError("");
     setShowModal(true);
   }
 
@@ -144,6 +197,8 @@ export default function PortfolioPage() {
     type,
     items: holdings.filter((h) => h.asset_type === type),
   })).filter((g) => g.items.length > 0);
+
+  const isStock = form.asset_type === "stock";
 
   return (
     <>
@@ -260,7 +315,7 @@ export default function PortfolioPage() {
                   <label>Asset Type *</label>
                   <select
                     value={form.asset_type}
-                    onChange={(e) => setForm({ ...form, asset_type: e.target.value as AssetType })}
+                    onChange={(e) => setForm({ ...form, asset_type: e.target.value as AssetType, current_value: null })}
                     required
                   >
                     {(Object.keys(ASSET_LABELS) as AssetType[]).map((t) => (
@@ -269,12 +324,12 @@ export default function PortfolioPage() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>{form.asset_type === "stock" ? "Symbol" : form.asset_type === "fd" ? "Bank / Institution" : "Name"} *</label>
+                  <label>{isStock ? "Symbol" : form.asset_type === "fd" ? "Bank / Institution" : "Name"} *</label>
                   <input
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder={
-                      form.asset_type === "stock" ? "e.g. RELIANCE" :
+                      isStock ? "e.g. RELIANCE" :
                       form.asset_type === "fd" ? "e.g. SBI" :
                       form.asset_type === "mutual_fund" ? "e.g. Mirae Asset Large Cap" :
                       form.asset_type === "gold" ? "e.g. Gold" : "Name"
@@ -312,7 +367,7 @@ export default function PortfolioPage() {
                     step="0.0001"
                     min="0"
                     value={form.quantity ?? ""}
-                    onChange={(e) => setForm({ ...form, quantity: e.target.value ? parseFloat(e.target.value) : null })}
+                    onChange={(e) => handleQuantityChange(e.target.value)}
                     disabled={form.asset_type === "fd"}
                   />
                 </div>
@@ -320,13 +375,22 @@ export default function PortfolioPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Current Value (₹)</label>
+                  <label>
+                    Current Value (₹)
+                    {isStock && (
+                      <span style={{ marginLeft: "0.4rem", fontSize: "0.78rem", color: priceFetching ? "#888" : priceError ? "#dc2626" : "#15803d" }}>
+                        {priceFetching ? "fetching…" : priceError ? priceError : form.current_value != null ? "auto-fetched" : ""}
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     value={form.current_value ?? ""}
                     onChange={(e) => setForm({ ...form, current_value: e.target.value ? parseFloat(e.target.value) : null })}
+                    readOnly={isStock && !priceError && form.current_value != null}
+                    style={isStock && !priceError && form.current_value != null ? { background: "#f6f9f6", color: "#555" } : undefined}
                   />
                 </div>
                 <div className="form-group">
@@ -358,7 +422,7 @@ export default function PortfolioPage() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
+                <button type="submit" className="btn btn-primary" disabled={saving || priceFetching}>
                   {saving ? "Saving…" : editing ? "Save Changes" : "Add Holding"}
                 </button>
               </div>
