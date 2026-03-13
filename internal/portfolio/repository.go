@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -110,7 +111,7 @@ func toNumeric(f *float64) pgtype.Numeric {
 		return pgtype.Numeric{}
 	}
 	var n pgtype.Numeric
-	_ = n.Scan(*f)
+	_ = n.Scan(strconv.FormatFloat(*f, 'f', -1, 64))
 	return n
 }
 
