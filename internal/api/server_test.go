@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"math/rand"
 	"net/http"
@@ -26,7 +25,14 @@ func randomSymbol() string {
 }
 
 func newTestServer(store *news.Store) *Server {
-	s, _ := New(context.Background(), nil, nil, nil, store, nil)
+	r := gin.New()
+	s := &Server{
+		router:    r,
+		newsStore: store,
+		shutdown:  func() {},
+	}
+	r.GET("/api/news/stock/:symbol", s.handleStockNews)
+	r.GET("/api/indicators", s.handleIndicators)
 	return s
 }
 
