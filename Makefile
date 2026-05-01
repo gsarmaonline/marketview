@@ -22,13 +22,12 @@ probe-edgar:
 	go run ./cmd/probes/edgar
 
 probe-fx:
-	@echo "TODO: fx probe not implemented yet"
-	@exit 1
+	go run ./cmd/probes/fx
 
 test:
 	go test ./...
 
-test-live: probe-yahoo probe-edgar
+test-live: probe-yahoo probe-edgar probe-fx
 	@echo "Live probes complete. See testdata/ and docs/providers/ for findings."
 
 tidy:
