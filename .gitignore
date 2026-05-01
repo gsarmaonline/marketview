@@ -8,6 +8,11 @@
 *.so
 *.dylib
 
+# Probe binaries built at the repo root by `go build ./cmd/probes/...`
+/yahoo
+/edgar
+/fx
+
 # Test binary, built with `go test -c`
 *.test
 
