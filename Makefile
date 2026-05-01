@@ -14,8 +14,12 @@ probe-yahoo:
 	go run ./cmd/probes/yahoo
 
 probe-edgar:
-	@echo "TODO: edgar probe not implemented yet"
-	@exit 1
+	@if [ -z "$$EDGAR_CONTACT_EMAIL" ]; then \
+		echo "EDGAR_CONTACT_EMAIL is required (SEC enforces a User-Agent containing it)"; \
+		echo "  e.g.: EDGAR_CONTACT_EMAIL=you@example.com make probe-edgar"; \
+		exit 1; \
+	fi
+	go run ./cmd/probes/edgar
 
 probe-fx:
 	@echo "TODO: fx probe not implemented yet"
@@ -24,7 +28,7 @@ probe-fx:
 test:
 	go test ./...
 
-test-live: probe-yahoo
+test-live: probe-yahoo probe-edgar
 	@echo "Live probes complete. See testdata/ and docs/providers/ for findings."
 
 tidy:
