@@ -101,3 +101,8 @@ Once running:
 ## Status
 
 Early-stage. The MVP target covers the four sections above end-to-end. Contributions, ideas, and data-source suggestions are welcome.
+
+## Project docs
+
+- [ROADMAP.md](./ROADMAP.md) — phased product plan from empty repo to MVP
+- [PLAN.md](./PLAN.md) — backend implementation plan: stack, repo layout, probe-first ingestion, testing strategy
